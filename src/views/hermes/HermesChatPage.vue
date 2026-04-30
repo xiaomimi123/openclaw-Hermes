@@ -1115,7 +1115,7 @@ const hermesStatusText = computed(() => {
     if (toolCalls.length > 0) {
       const runningTools = toolCalls.filter(tc => tc.status === 'running')
       if (runningTools.length > 0) {
-        const names = runningTools.map(tc => `${tc.emoji || '🔧'} ${tc.toolName}`).join(', ')
+        const names = runningTools.map(tc => tc.emoji ? `${tc.emoji} ${tc.toolName}` : tc.toolName).join(', ')
         return `${t('pages.hermesChat.toolCall')}: ${names}`
       }
     }
@@ -2326,7 +2326,7 @@ function handleSaveQuickReply() {
                 <div v-if="showToolDetails && chatStore.activeToolCalls.length > 0" class="chat-tool-progress">
                   <div v-for="(tc, tcIdx) in chatStore.activeToolCalls" :key="tc.toolCallId || tcIdx" class="chat-tool-progress__item">
                     <div class="chat-tool-progress__title">
-                      <span>{{ tc.emoji || '🔧' }} {{ tc.toolName }}</span>
+                      <span>{{ tc.emoji ? `${tc.emoji} ` : '' }}{{ tc.toolName }}</span>
                       <span v-if="tc.duration" class="chat-tool-progress__meta">{{ formatToolDuration(tc.duration) }}</span>
                     </div>
                     <div class="chat-tool-progress__kv">
