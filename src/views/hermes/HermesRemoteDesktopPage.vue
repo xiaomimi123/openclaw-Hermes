@@ -30,6 +30,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { useRemoteDesktopStore } from '@/stores/remote-desktop'
 import { useWebSocketStore } from '@/stores/websocket'
+import { useAuthStore } from '@/stores/auth'
 import type { RemoteDesktopNode } from '@/api/types'
 import DesktopCanvas from '@/views/remote-desktop/components/DesktopCanvas.vue'
 import NodeSelector from '@/views/remote-desktop/components/NodeSelector.vue'
@@ -38,6 +39,7 @@ const message = useMessage()
 const { t } = useI18n()
 const desktopStore = useRemoteDesktopStore()
 const wsStore = useWebSocketStore()
+const authStore = useAuthStore()
 
 const desktopCanvasRef = ref<InstanceType<typeof DesktopCanvas> | null>(null)
 const isFullscreen = ref(false)
@@ -106,7 +108,7 @@ async function loadDisplays() {
   try {
     const response = await fetch('/api/desktop/displays', {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+        'Authorization': `Bearer ${authStore.getToken() || ''}`,
       },
     })
     const result = await response.json()
