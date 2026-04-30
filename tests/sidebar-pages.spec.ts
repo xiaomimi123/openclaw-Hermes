@@ -13,7 +13,7 @@ const PAGES_TO_CHECK = [
   { name: '模型管理', path: '/models', mustHave: 'h1:has-text("模型管理")' },
   { name: '自动化任务', path: '/cron', mustHave: 'h1:has-text("自动化任务")' },
   { name: '虚拟公司', path: '/myworld', mustHave: 'h1:has-text("虚拟公司")' },
-  { name: '通信渠道', path: '/channels', mustHave: 'h1:has-text("通信渠道")' },
+  { name: '通信渠道', path: '/channels', mustHave: '.n-card-header :has-text("通信渠道"), h1:has-text("通信渠道")' },
   { name: '系统设置', path: '/settings', mustHave: 'h1:has-text("系统设置")' },
 ]
 

@@ -1196,7 +1196,16 @@ app.post('/api/rpc', authMiddleware, async (req, res) => {
     const result = await gateway.call(method, params)
     res.json({ ok: true, payload: result })
   } catch (err) {
-    res.status(500).json({ ok: false, error: { message: err.message } })
+    // Gateway 业务错误(unknown method、INVALID_REQUEST 等)用 200 + ok:false 返回 ——
+    // 前端 fallback chain 依赖 200 响应才能切下一个方法尝试,500 会污染浏览器 console。
+    // 真正网络/系统错误才走 500。
+    const msg = String(err?.message || '')
+    const isBusinessError = /unknown method|invalid|INVALID_REQUEST|method.*not.*found/i.test(msg)
+    if (isBusinessError) {
+      res.json({ ok: false, error: { message: err.message } })
+    } else {
+      res.status(500).json({ ok: false, error: { message: err.message } })
+    }
   }
 })
 

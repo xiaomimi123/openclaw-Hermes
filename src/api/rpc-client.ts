@@ -2288,7 +2288,17 @@ export class RPCClient {
     return this.callWithMethodAndParamsFallback<unknown>(
       ['plugins.list', 'plugin.list', 'plugins.status', 'plugin.status'],
       [{}, undefined]
-    ).then((payload) => this.normalizePluginList(payload))
+    )
+      .then((payload) => this.normalizePluginList(payload))
+      .catch((err) => {
+        // Gateway 4.21 移除了 plugins.* RPC,所有 fallback 全报 unknown method —
+        // 当成"网关不支持"处理,返回空数组,让上层 UI(channels page)优雅降级。
+        const msg = String(err?.message || '')
+        if (/unknown method|method.*not.*found/i.test(msg)) {
+          return []
+        }
+        throw err
+      })
   }
 
   installPlugin(name: string): Promise<void> {

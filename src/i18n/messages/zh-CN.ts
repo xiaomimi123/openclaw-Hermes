@@ -218,7 +218,7 @@ export default {
       rawReadonlyHint: '以下为当前 openclaw.json 的完整配置内容（只读查看）',
     },
     channels: {
-      title: '频道管理',
+      title: '通信渠道',
       thanks: {
         prefix: '感谢',
         suffix: '为中国渠道生态提供扩展支持。各渠道官方教学可通过下方链接直接访问。',
