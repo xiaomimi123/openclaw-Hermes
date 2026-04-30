@@ -1,53 +1,42 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { NSpin, NButton, NIcon, NEmpty, NTag, useMessage } from 'naive-ui'
+import { computed, onMounted } from 'vue'
+import { NSpin, NButton, NIcon, NEmpty, NTag } from 'naive-ui'
 import { AddOutline, BusinessOutline, PeopleOutline } from '@vicons/ionicons5'
-import { useWebSocketStore } from '@/stores/websocket'
+import { useRouter } from 'vue-router'
+import { useOfficeStore } from '@/stores/office'
 
-interface WorldRoom {
-  id: string
-  name: string
-  description?: string
-  agentCount?: number
-  active?: boolean
-}
+// 灵境 MyWorld 是 OpenClaw /office 场景的灵境品牌入口 ——
+// 数据共用 useOfficeStore,新建/进入都跳到 /office 真正的协作页面
+const router = useRouter()
+const officeStore = useOfficeStore()
 
-const message = useMessage()
-const wsStore = useWebSocketStore()
+const loading = computed(() => officeStore.loading)
+const lastError = computed(() => officeStore.error)
 
-const rooms = ref<WorldRoom[]>([])
-const loading = ref(false)
-const lastError = ref('')
+const rooms = computed(() =>
+  officeStore.scenarios.map((s) => ({
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    agentCount: s.agents?.length ?? 0,
+    active: s.status === 'active',
+  })),
+)
 
-onMounted(loadRooms)
-
-async function loadRooms() {
-  loading.value = true
-  lastError.value = ''
-  try {
-    // OpenClaw 的 myworld / office 数据 RPC,在 4.21 里可能叫不同名字,
-    // 用 listOfficeRooms 兜底,失败则展示空状态
-    const list = await ((wsStore.rpc as any).listOfficeRooms?.() ?? Promise.resolve([])) as any[]
-    rooms.value = list.map((r: any) => ({
-      id: r.id || r.roomId || r.name,
-      name: r.name || r.title || r.id,
-      description: r.description,
-      agentCount: r.agentCount ?? r.agents?.length,
-      active: r.active ?? r.online,
-    }))
-  } catch (err: any) {
-    lastError.value = err?.message || '加载场景列表失败'
-  } finally {
-    loading.value = false
-  }
-}
+onMounted(() => {
+  officeStore.loadOfficeData?.()
+})
 
 function handleNew() {
-  message.info('新建虚拟公司功能正在开发中')
+  // /office 自带 Wizard,跳过去顺便打开 wizard
+  officeStore.showWizard?.()
+  router.push('/office')
 }
 
-function handleEnter(room: WorldRoom) {
-  message.info(`进入 ${room.name}(功能开发中)`)
+function handleEnter(roomId: string) {
+  // 选中场景后跳过去
+  officeStore.activateScenario?.(roomId)
+  router.push('/office')
 }
 </script>
 
@@ -89,7 +78,7 @@ function handleEnter(room: WorldRoom) {
           v-for="room in rooms"
           :key="room.id"
           class="room-card"
-          @click="handleEnter(room)"
+          @click="handleEnter(room.id)"
         >
           <div class="room-icon">
             <NIcon size="20"><BusinessOutline /></NIcon>
