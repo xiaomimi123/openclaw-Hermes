@@ -18,18 +18,21 @@ const router = useRouter()
 const isOpenClaw = computed(() => connStore.currentGateway === 'openclaw')
 
 onMounted(() => {
-  if (isOpenClaw.value) {
-    wsStore.connect()
+  // 如果用户直接访问 /hermes/* 但当前网关是 openclaw(或反之),
+  // 顺着路由自动切换网关 —— 不要把用户重定向到默认页面,体验更顺。
+  const routeGateway = route.meta?.gateway as 'openclaw' | 'hermes' | undefined
+  if (routeGateway && routeGateway !== connStore.currentGateway) {
+    connStore.switchGateway(routeGateway)
+    // switchGateway 会触发下面的 watch,由它处理连接逻辑
   } else {
-    connStore.connect()
+    // gateway 已经一致,直接连接对应的后端
+    if (isOpenClaw.value) {
+      wsStore.connect()
+    } else {
+      connStore.connect()
+    }
   }
   billingStore.startPolling()
-
-  const currentGateway = isOpenClaw.value ? 'openclaw' : 'hermes'
-  const routeGateway = route.meta?.gateway as string | undefined
-  if (routeGateway && routeGateway !== currentGateway) {
-    router.replace(isOpenClaw.value ? '/' : '/hermes/chat')
-  }
 })
 
 watch(isOpenClaw, (val) => {

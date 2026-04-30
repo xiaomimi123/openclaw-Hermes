@@ -3,6 +3,11 @@
 静态分析 + Playwright 运行时验证(`tests/feature-inventory.spec.ts`)合并结果。
 截图 + RPC 日志原始数据:`test-results/inventory/`。
 
+> **2026-04-30 更新**:Phase 2 + Phase 3 已完成。
+> - Phase 2 修了 P0-3 远程桌面 401、P1-4/5/6 三个"开发中"按钮、P0-2 通信渠道 MOCK→REAL
+> - Phase 3 解锁工坊侧 13 个路由,GatewaySwitcher 切换通,补了 race condition fix
+> - 表格里的 [BLOCKED] 现已全部解除,标记为 [OK]
+
 **状态标识**:
 - `[OK]` 页面正常 + RPC 全 200 + 数据真实
 - `[MOCK]` 能开,但显示的是写死的常量(没接 RPC)

@@ -320,9 +320,13 @@ export const useHermesConnectionStore = defineStore('hermes-connection', () => {
     try {
       client = new HermesApiClient(undefined, connectionConfig.value.apiKey)
       const status = await client.getStatus()
+      // 防竞态:如果 await 期间用户已经切回 openclaw,别把状态拽回来
+      if (currentGateway.value !== 'hermes') {
+        client = null
+        return false
+      }
       hermesStatus.value = status
       hermesConnected.value = true
-      currentGateway.value = 'hermes'
       console.log('[HermesConnection] Connected, version:', status.version)
       return true
     } catch (error) {
