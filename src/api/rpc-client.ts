@@ -2317,6 +2317,12 @@ export class RPCClient {
     return this.callWithFallback(['skills.install'], { name })
   }
 
+  uninstallSkill(name: string): Promise<void> {
+    // 4.21 真正的方法名待验证;先按 dot 命名传两个常见 fallback,Gateway
+    // 找不到任何一个会抛 method-not-found,前端兜底转成"网关不支持"提示。
+    return this.callWithFallback(['skills.uninstall', 'skills.remove'], { name })
+  }
+
   updateSkills(): Promise<void> {
     return this.callWithFallback(['skills.update'])
   }

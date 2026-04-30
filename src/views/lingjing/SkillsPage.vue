@@ -50,9 +50,20 @@ async function handleToggle(skill: Skill, value: boolean) {
       skill.installed = true
       message.success(`已启用 ${skill.name}`)
     } else if (!value && skill.installed) {
-      // uninstall — RPC 没有 uninstallSkill 方法,用 disabled 标记代替(看 Skill 类型)
-      message.warning('卸载功能尚未开放,请联系管理员')
-      skill.installed = true // revert
+      try {
+        await wsStore.rpc.uninstallSkill(skill.name)
+        skill.installed = false
+        message.success(`已停用 ${skill.name}`)
+      } catch (err: any) {
+        const m = String(err?.message || '')
+        // 网关老版本可能不支持 skills.uninstall —— 给用户明确提示而不是当 bug 报
+        if (/method.*not.*found|unknown method|unsupported/i.test(m)) {
+          message.warning('当前 Gateway 不支持远程停用,请升级或在配置文件里手动移除')
+        } else {
+          message.error(m || '停用失败')
+        }
+        skill.installed = true // revert
+      }
     }
   } catch (err: any) {
     message.error(err?.message || '操作失败')
