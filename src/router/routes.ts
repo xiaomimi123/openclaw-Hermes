@@ -136,6 +136,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '多智能体', icon: 'PeopleOutline', gateway: 'openclaw', section: 'build' },
       },
       {
+        path: 'workshop',
+        name: 'AgentWorkshop',
+        component: () => import('@/views/lingjing/AgentWorkshopPage.vue'),
+        meta: { title: '智能体工坊', icon: 'ConstructOutline', gateway: 'openclaw', section: 'build' },
+      },
+      {
         path: 'office',
         name: 'Office',
         component: () => import('@/views/office/OfficePage.vue'),
