@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NSpin, NTag, NButton, NIcon, useMessage } from 'naive-ui'
-import { PersonCircleOutline, AddOutline } from '@vicons/ionicons5'
+import {
+  NSpin, NTag, NButton, NIcon, NModal, NInput, NSpace, NForm, NFormItem,
+  NPopconfirm, useMessage, useDialog,
+} from 'naive-ui'
+import { PersonCircleOutline, AddOutline, TrashOutline } from '@vicons/ionicons5'
 import { useWebSocketStore } from '@/stores/websocket'
 
 interface AgentRow {
@@ -9,16 +12,26 @@ interface AgentRow {
   name: string
   emoji?: string
   model?: string
+  workspace?: string
   isDefault: boolean
 }
 
 const message = useMessage()
+const dialog = useDialog()
 const wsStore = useWebSocketStore()
 
 const agents = ref<AgentRow[]>([])
 const loading = ref(false)
 const lastError = ref('')
 const defaultId = ref<string>('')
+
+// 编辑/新建 modal
+const showModal = ref(false)
+const modalMode = ref<'create' | 'edit'>('create')
+const formAgentId = ref('')
+const formName = ref('')
+const formWorkspace = ref('')
+const submitting = ref(false)
 
 onMounted(loadAgents)
 
@@ -34,6 +47,7 @@ async function loadAgents() {
       name: a.identity?.name || a.name || a.id,
       emoji: a.identity?.emoji,
       model: a.model,
+      workspace: a.workspace,
       isDefault: a.id === defaultId.value,
     }))
   } catch (err: any) {
@@ -44,12 +58,77 @@ async function loadAgents() {
   }
 }
 
-function handleNew() {
-  message.info('新建智能体功能正在开发中')
+function openCreate() {
+  modalMode.value = 'create'
+  formAgentId.value = ''
+  formName.value = ''
+  formWorkspace.value = ''
+  showModal.value = true
 }
 
-function handleEdit(agent: AgentRow) {
-  message.info(`编辑 ${agent.name}(功能开发中)`)
+function openEdit(agent: AgentRow) {
+  modalMode.value = 'edit'
+  formAgentId.value = agent.id
+  formName.value = agent.name
+  formWorkspace.value = agent.workspace || ''
+  showModal.value = true
+}
+
+async function handleSubmit() {
+  const name = formName.value.trim()
+  if (!name) {
+    message.warning('请填写名称')
+    return
+  }
+  submitting.value = true
+  try {
+    if (modalMode.value === 'create') {
+      const ws = formWorkspace.value.trim() ||
+        `${'~'}/.openclaw/workspaces/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+      const r = await wsStore.rpc.createAgent({ name, workspace: ws })
+      message.success(`已创建 ${r.name}`)
+    } else {
+      await wsStore.rpc.updateAgent({
+        agentId: formAgentId.value,
+        name,
+        ...(formWorkspace.value.trim() ? { workspace: formWorkspace.value.trim() } : {}),
+      })
+      message.success(`已更新 ${name}`)
+    }
+    showModal.value = false
+    await loadAgents()
+  } catch (err: any) {
+    message.error(err?.message || '操作失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleDelete() {
+  if (!formAgentId.value) return
+  if (formAgentId.value === defaultId.value) {
+    message.warning('默认智能体不能删除,请先在 OpenClaw 里切换默认')
+    return
+  }
+  dialog.warning({
+    title: '确认删除',
+    content: `删除 "${formName.value}" 后,关联的会话将解绑。此操作不可撤销,确认继续?`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      submitting.value = true
+      try {
+        await wsStore.rpc.deleteAgent(formAgentId.value)
+        message.success('已删除')
+        showModal.value = false
+        await loadAgents()
+      } catch (err: any) {
+        message.error(err?.message || '删除失败')
+      } finally {
+        submitting.value = false
+      }
+    },
+  })
 }
 </script>
 
@@ -63,7 +142,7 @@ function handleEdit(agent: AgentRow) {
             管理你的 AI 助手。每个智能体有独立的人设、记忆和工具配置
           </p>
         </div>
-        <NButton type="primary" size="medium" @click="handleNew">
+        <NButton type="primary" size="medium" @click="openCreate">
           <template #icon>
             <NIcon><AddOutline /></NIcon>
           </template>
@@ -86,7 +165,7 @@ function handleEdit(agent: AgentRow) {
           v-for="agent in agents"
           :key="agent.id"
           class="agent-card"
-          @click="handleEdit(agent)"
+          @click="openEdit(agent)"
         >
           <div class="agent-avatar">
             <span v-if="agent.emoji" class="agent-emoji">{{ agent.emoji }}</span>
@@ -119,6 +198,56 @@ function handleEdit(agent: AgentRow) {
     <p class="page-footnote">
       智能体由 OpenClaw 管理。每个智能体有独立的工作空间(workspace)、记忆(memory)和会话(sessions)。
     </p>
+
+    <NModal
+      v-model:show="showModal"
+      preset="card"
+      :title="modalMode === 'create' ? '新建智能体' : `编辑 ${formName}`"
+      style="width: 480px;"
+      :bordered="false"
+      :segmented="{ content: 'soft' }"
+    >
+      <NForm label-placement="left" label-width="78" :show-feedback="false">
+        <NFormItem label="名称" required>
+          <NInput v-model:value="formName" placeholder="例如:研究助手" maxlength="40" show-count />
+        </NFormItem>
+        <NFormItem label="工作目录">
+          <NInput
+            v-model:value="formWorkspace"
+            :placeholder="modalMode === 'create' ? '留空使用默认 ~/.openclaw/workspaces/<name>' : ''"
+          />
+        </NFormItem>
+        <p v-if="modalMode === 'edit'" class="modal-id-hint">ID {{ formAgentId }}</p>
+        <p class="modal-id-hint">头像 / 人设需在 AGENTS.md 中编辑(/memory 页面)</p>
+      </NForm>
+
+      <template #footer>
+        <div class="modal-footer">
+          <NButton
+            v-if="modalMode === 'edit'"
+            type="error"
+            ghost
+            size="medium"
+            :disabled="submitting"
+            @click="handleDelete"
+          >
+            <template #icon><NIcon><TrashOutline /></NIcon></template>
+            删除
+          </NButton>
+          <NSpace :size="8" style="margin-left: auto;">
+            <NButton size="medium" :disabled="submitting" @click="showModal = false">取消</NButton>
+            <NButton
+              type="primary"
+              size="medium"
+              :loading="submitting"
+              @click="handleSubmit"
+            >
+              {{ modalMode === 'create' ? '创建' : '保存' }}
+            </NButton>
+          </NSpace>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -264,5 +393,18 @@ function handleEdit(agent: AgentRow) {
   color: var(--n-text-color-3);
   margin: 16px 4px 0;
   line-height: 1.5;
+}
+
+.modal-id-hint {
+  font-size: 11.5px;
+  color: var(--n-text-color-disabled);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  margin: 4px 0 0 78px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 </style>
