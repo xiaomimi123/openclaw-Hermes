@@ -80,8 +80,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'channels',
         name: 'Channels',
-        component: () => import('@/views/channels/ChannelsPage.vue'),
+        component: () => import('@/views/lingjing/ChannelsPage.vue'),
         meta: { title: '通信渠道', icon: 'GitNetworkOutline', gateway: 'openclaw', section: 'build' },
+      },
+      {
+        path: 'channels-advanced',
+        name: 'ChannelsAdvanced',
+        component: () => import('@/views/channels/ChannelsPage.vue'),
+        meta: { title: '通信渠道(高级)', icon: 'GitNetworkOutline', gateway: 'openclaw', section: 'build', hidden: true },
       },
       {
         path: 'config',

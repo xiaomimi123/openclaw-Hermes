@@ -510,6 +510,14 @@ ipcMain.handle('lingjing:auto-configure-via-main', async (_event, params) => {
   }
 })
 
+ipcMain.handle('lingjing:open-external', async (_event, url) => {
+  if (typeof url !== 'string') return { ok: false, message: 'invalid url' }
+  // 只允许 http/https,防 file:// 攻击
+  if (!/^https?:\/\//i.test(url)) return { ok: false, message: 'unsupported scheme' }
+  await shell.openExternal(url)
+  return { ok: true }
+})
+
 ipcMain.handle('lingjing:gateway-status', async () => {
   // UI 侧用来画"后端状态"卡片——三方端口探活
   const [server, openclaw, hermes] = await Promise.all([

@@ -37,4 +37,9 @@ contextBridge.exposeInMainWorld('lingjing', {
    * 网关挂了,UI 侧"重启"按钮调:which='openclaw'|'hermes'。
    */
   restartGateway: (which) => ipcRenderer.invoke('lingjing:gateway-restart', which),
+  /**
+   * 用户操作系统的默认浏览器打开 URL(只允许 http/https)。
+   * 用在通信渠道教学链接、官方文档等场景。
+   */
+  openExternal: (url) => ipcRenderer.invoke('lingjing:open-external', url),
 })
