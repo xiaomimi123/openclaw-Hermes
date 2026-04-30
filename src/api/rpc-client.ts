@@ -710,6 +710,36 @@ export class RPCClient {
   private normalizeSkillItem(value: unknown): Skill {
     const row = this.asRecord(value)
     const source = this.normalizeSkillSource(row)
+
+    // 透传增强字段(skills.status 返回的全量数据,不丢)
+    const installArr = Array.isArray(row.install)
+      ? (row.install as unknown[]).map((step) => {
+          const s = this.asRecord(step)
+          return {
+            id: this.asString(s.id) || undefined,
+            kind: this.asString(s.kind) || undefined,
+            label: this.asString(s.label) || undefined,
+            bins: Array.isArray(s.bins) ? (s.bins as unknown[]).filter((b): b is string => typeof b === 'string') : undefined,
+            command: this.asString(s.command) || undefined,
+          }
+        })
+      : undefined
+
+    const reqRow = (key: string) => {
+      const r = this.asRecord(row[key])
+      const arr = (k: string) => {
+        const v = r[k]
+        return Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : undefined
+      }
+      return {
+        bins: arr('bins'),
+        anyBins: arr('anyBins'),
+        config: arr('config'),
+        env: arr('env'),
+        os: arr('os'),
+      }
+    }
+
     return {
       name: this.asString(row.name || row.id),
       description: this.asString(row.description) || undefined,
@@ -721,6 +751,14 @@ export class RPCClient {
       bundled: this.asBoolean(row.bundled, source === 'bundled'),
       skillKey: this.asString(row.skillKey) || undefined,
       hasUpdate: this.asBoolean(row.hasUpdate, false) || undefined,
+      emoji: this.asString(row.emoji) || undefined,
+      homepage: this.asString(row.homepage) || undefined,
+      always: this.asBoolean(row.always, false) || undefined,
+      install: installArr,
+      requirements: row.requirements ? reqRow('requirements') : undefined,
+      missing: row.missing ? reqRow('missing') : undefined,
+      filePath: this.asString(row.filePath) || undefined,
+      baseDir: this.asString(row.baseDir) || undefined,
     }
   }
 

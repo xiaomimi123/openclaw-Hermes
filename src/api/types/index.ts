@@ -7,17 +7,42 @@ export * from './remote-desktop'
 export * from './backup'
 import type { ModelConfig, ToolPolicyConfig } from './config'
 
+export interface SkillInstallStep {
+  id?: string                          // 例如 'brew' / 'npm'
+  kind?: string                        // 'brew' | 'pip' | 'npm' | 'manual' …
+  label?: string                       // 给用户看的描述
+  bins?: string[]                      // 装完后会有的 CLI(用来探测)
+  command?: string                     // 完整命令行(可选)
+}
+
+export interface SkillRequirements {
+  bins?: string[]                      // 必须有的 CLI
+  anyBins?: string[]                   // 任一存在即可
+  config?: string[]                    // 必须的 config 路径(如 channels.discord.token)
+  env?: string[]                       // 必须的环境变量
+  os?: string[]                        // 兼容操作系统
+}
+
 export interface Skill {
   name: string
   description?: string
   version?: string
   source: 'bundled' | 'managed' | 'workspace' | 'extra'
   installed: boolean
-  eligible?: boolean
-  disabled?: boolean
+  eligible?: boolean         // true = 依赖满足,可启用
+  disabled?: boolean         // true = 用户禁用
   bundled?: boolean
   skillKey?: string
   hasUpdate?: boolean
+  // 增强字段(OpenClaw 4.21 skills.status 返回但旧 normalizer 丢弃,这里补上)
+  emoji?: string             // 图标 emoji,如 🔐
+  homepage?: string          // 官方文档链接
+  always?: boolean           // 总是启用(系统级)
+  install?: SkillInstallStep[]    // 安装方式列表
+  requirements?: SkillRequirements
+  missing?: SkillRequirements     // 当前缺啥
+  filePath?: string          // SKILL.md 文件路径
+  baseDir?: string           // 技能根目录
 }
 
 export interface PluginPackage {
