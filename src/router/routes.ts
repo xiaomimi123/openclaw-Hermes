@@ -44,8 +44,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'sessions',
         name: 'Sessions',
-        component: () => import('@/views/sessions/SessionsPage.vue'),
+        component: () => import('@/views/lingjing/SessionsPage.vue'),
         meta: { title: '历史', icon: 'ChatbubblesOutline', gateway: 'openclaw', section: 'use' },
+      },
+      {
+        path: 'sessions-advanced',
+        name: 'SessionsAdvanced',
+        component: () => import('@/views/sessions/SessionsPage.vue'),
+        meta: { title: '历史(高级)', icon: 'ChatbubblesOutline', gateway: 'openclaw', section: 'use', hidden: true },
       },
       {
         path: 'sessions/:key',
