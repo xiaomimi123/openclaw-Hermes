@@ -42,4 +42,10 @@ contextBridge.exposeInMainWorld('lingjing', {
    * 用在通信渠道教学链接、官方文档等场景。
    */
   openExternal: (url) => ipcRenderer.invoke('lingjing:open-external', url),
+  /**
+   * ClawHub 技能商城 —— 走 openclaw skills CLI 调用,Electron 主进程出锅。
+   */
+  skillsSearch: (params) => ipcRenderer.invoke('lingjing:skills-search', params),
+  skillsInstall: (params) => ipcRenderer.invoke('lingjing:skills-install', params),
+  skillsInfo: (params) => ipcRenderer.invoke('lingjing:skills-info', params),
 })

@@ -510,6 +510,74 @@ ipcMain.handle('lingjing:auto-configure-via-main', async (_event, params) => {
   }
 })
 
+// ============================================================================
+// ClawHub 技能商城 —— 用 openclaw skills CLI 查询 + 安装
+// ============================================================================
+
+async function findOpenClawBin() {
+  const candidates = [
+    '/opt/homebrew/bin/openclaw',
+    '/usr/local/bin/openclaw',
+    `${os.homedir()}/.local/bin/openclaw`,
+  ]
+  for (const c of candidates) {
+    try {
+      await fs.access(c)
+      return c
+    } catch {
+      // 跳过
+    }
+  }
+  return null
+}
+
+ipcMain.handle('lingjing:skills-search', async (_event, params) => {
+  const query = (params?.query && typeof params.query === 'string') ? params.query.trim() : ''
+  const limit = Number(params?.limit) > 0 ? Math.min(50, Number(params.limit)) : 20
+  const bin = await findOpenClawBin()
+  if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
+  const args = ['skills', 'search', '--json', '--limit', String(limit)]
+  if (query) args.push(query)
+  const r = await runCommand(bin, args, { timeout: 20000 })
+  if (r.code !== 0) {
+    return { ok: false, message: `openclaw skills search exit ${r.code}: ${(r.stderr || r.stdout).slice(0, 300)}` }
+  }
+  try {
+    const data = JSON.parse(r.stdout || '{}')
+    return { ok: true, results: Array.isArray(data?.results) ? data.results : [] }
+  } catch (e) {
+    return { ok: false, message: `JSON 解析失败:${String(e?.message || e)}` }
+  }
+})
+
+ipcMain.handle('lingjing:skills-install', async (_event, params) => {
+  const slug = params?.slug
+  if (!slug || typeof slug !== 'string') return { ok: false, message: 'slug 为空' }
+  const force = !!params?.force
+  const bin = await findOpenClawBin()
+  if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
+  const args = ['skills', 'install', slug]
+  if (force) args.push('--force')
+  const r = await runCommand(bin, args, { timeout: 120000 })
+  if (r.code !== 0) {
+    return { ok: false, message: `安装失败:${(r.stderr || r.stdout || `exit ${r.code}`).slice(0, 400)}` }
+  }
+  return { ok: true, stdout: r.stdout?.slice(-400) || '' }
+})
+
+ipcMain.handle('lingjing:skills-info', async (_event, params) => {
+  const slug = params?.slug
+  if (!slug || typeof slug !== 'string') return { ok: false, message: 'slug 为空' }
+  const bin = await findOpenClawBin()
+  if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
+  const r = await runCommand(bin, ['skills', 'info', slug], { timeout: 20000 })
+  return {
+    ok: r.code === 0,
+    text: r.stdout || r.stderr || '',
+    code: r.code,
+  }
+})
+
 ipcMain.handle('lingjing:open-external', async (_event, url) => {
   if (typeof url !== 'string') return { ok: false, message: 'invalid url' }
   // 只允许 http/https,防 file:// 攻击
