@@ -1,5 +1,5 @@
 /* ============================================================================
- * 灵境对话样式覆盖 v2 —— ChatGPT/豆包 极简风
+ * 灵境对话样式覆盖 v3 —— 嵌入式 / ChatGPT / Claude 极简风
  * 用 html 前缀提高优先级,胜过 Vue scoped CSS (data-v-xxx)
  * ============================================================================ */
 
@@ -42,9 +42,18 @@ html .chat-page .chat-root-card > .n-card__content {
   padding: 0 !important;
 }
 
+/* page-container 默认没 height,导致 chat-page 100% 失效;chat 路由下补一下。
+ * `:has()` 在 Electron 36 (Chromium 130+) 支持;万一不支持也无伤大雅,
+ * 后续兜底用 vh 计算。 */
+html .page-container:has(.chat-page) {
+  height: 100% !important;
+}
+
 html .chat-page {
   padding: 0 !important;
-  height: 100% !important;
+  /* 用 vh 直接绑视区高度,绕过 height:100% 链路问题 */
+  height: calc(100vh - var(--header-height, 48px)) !important;
+  max-height: calc(100vh - var(--header-height, 48px)) !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -230,3 +239,62 @@ html .chat-page textarea.n-input__textarea-el {
   font-size: 14px !important;
   line-height: 1.55 !important;
 }
+
+/* 9. v3 嵌入式风格 —— 隐藏对话页内残余的"工作台"装饰 ------------------ */
+/* 9.1 .chat-transcript-card 顶部那个 NSpace 是「会话标签 / 已同步 时间 / 用户/助手统计」
+       —— 删掉,ChatGPT 风格不要这些 */
+html .chat-page .chat-transcript-card > .n-card__content > .n-space:first-child {
+  display: none !important;
+}
+
+/* 9.2 transcript 的边框 / 渐变背景去掉,纯文字流 */
+html .chat-page .chat-transcript {
+  border: none !important;
+  background: transparent !important;
+  padding: 14px 24px 28px !important;
+}
+
+/* 9.3 整张 transcript-card 不要外圈卡片感,跟页面同色 */
+html .chat-page .chat-transcript-card {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html .chat-page .chat-transcript-card > .n-card__content {
+  padding: 0 !important;
+}
+
+/* 9.4 chat-main-column 撑满高度,主区 flex 列布局 */
+html .chat-page .chat-grid-main,
+html .chat-page .chat-main-column {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* 9.5 输入区域容器 sticky 底部,统一加点呼吸感 */
+html .chat-page .chat-compose-card {
+  flex-shrink: 0 !important;
+  border: 1px solid var(--n-border-color) !important;
+  border-radius: 12px !important;
+  margin: 0 24px 18px !important;
+  padding: 8px 10px !important;
+  background: var(--n-card-color) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+
+:root[data-theme='dark'] html .chat-page .chat-compose-card {
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 9.6 输入区底部 "当前发送到 main | Enter 发送..." 提示
+   NText depth=3 渲染成 .n-text--depth-3 / .n-text(默认 mode);两边兜底 */
+html .chat-page .chat-compose-card .n-text--depth-3,
+html .chat-page .chat-compose-card .n-text[depth="3"],
+html .chat-page .chat-compose-card span.n-text {
+  display: none !important;
+}
+
+/* 9.7 v2 已经隐藏 "清空输入"(button.is-clear / [class*="clear-input"]) */
