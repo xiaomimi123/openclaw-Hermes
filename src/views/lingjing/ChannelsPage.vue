@@ -301,6 +301,7 @@ function openGuide(url: string) {
             <p class="card-desc">{{ card.meta.description }}</p>
           </div>
           <div class="card-actions">
+            <!-- 1) 未装插件 → 安装按钮 -->
             <NButton
               v-if="!card.state.pluginInstalled"
               type="primary"
@@ -312,23 +313,24 @@ function openGuide(url: string) {
               <template #icon><NIcon><ConstructOutline /></NIcon></template>
               一键安装
             </NButton>
-            <template v-else>
-              <NButton
-                size="small"
-                :type="card.state.active ? 'default' : 'primary'"
-                @click="openConfig(card.meta)"
-              >
-                {{ card.state.active ? '重新配置' : '配置' }}
-              </NButton>
-              <NButton
-                v-if="card.state.active"
-                size="small"
-                quaternary
-                @click="handleDisable(card.meta)"
-              >
-                停用
-              </NButton>
-            </template>
+            <!-- 2) 已装 → 配置按钮 -->
+            <NButton
+              v-if="card.state.pluginInstalled"
+              size="small"
+              :type="card.state.active ? 'default' : 'primary'"
+              @click="openConfig(card.meta)"
+            >
+              {{ card.state.active ? '重新配置' : '配置' }}
+            </NButton>
+            <!-- 3) 已装且运行中 → 多一个停用按钮 -->
+            <NButton
+              v-if="card.state.active"
+              size="small"
+              quaternary
+              @click="handleDisable(card.meta)"
+            >
+              停用
+            </NButton>
           </div>
         </div>
       </div>
