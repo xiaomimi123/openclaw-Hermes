@@ -324,7 +324,7 @@ function runCommand(cmd, args, opts = {}) {
   })
 }
 
-async function configureOpenClaw(token, baseUrl, modelId) {
+async function configureOpenClaw(token, baseUrl, modelId, providerId = 'lingjing', compat = 'openai') {
   // 找 openclaw CLI 路径(用户从 brew/npm 装在不同位置都覆盖到)
   const candidates = [
     '/opt/homebrew/bin/openclaw',
@@ -353,8 +353,8 @@ async function configureOpenClaw(token, baseUrl, modelId) {
     '--auth-choice', 'custom-api-key',
     '--custom-api-key', token,
     '--custom-base-url', baseUrl,
-    '--custom-compatibility', 'openai',
-    '--custom-provider-id', 'lingjing',
+    '--custom-compatibility', compat,
+    '--custom-provider-id', providerId,
     '--custom-model-id', modelId || 'gpt-5.4',
     '--accept-risk',
     '--gateway-bind', 'loopback',
@@ -534,13 +534,19 @@ ipcMain.handle('lingjing:configure-local-providers', async (_event, params) => {
   const token = params?.token
   const baseUrl = params?.baseUrl || 'https://api.aitoken.homes/v1'
   const modelId = params?.modelId || 'gpt-5.4'
+  const providerId = (params?.providerId && typeof params.providerId === 'string') ? params.providerId : 'lingjing'
+  const compat = (params?.compat && typeof params.compat === 'string') ? params.compat : 'openai'
+  // 用户接自己的 API 时不写 Hermes(避免覆盖灵镜云端,Hermes 仍然走 .env 默认配置)
+  const skipHermes = !!params?.skipHermes
   if (!token || typeof token !== 'string') {
     return { openclaw: 'skipped', hermes: 'skipped', message: 'no token provided' }
   }
-  const [oc, hm] = await Promise.all([
-    configureOpenClaw(token, baseUrl, modelId).catch((e) => ({ status: 'error', message: String(e?.message || e) })),
-    configureHermes(token, baseUrl).catch((e) => ({ status: 'error', message: String(e?.message || e) })),
-  ])
+  const ocPromise = configureOpenClaw(token, baseUrl, modelId, providerId, compat)
+    .catch((e) => ({ status: 'error', message: String(e?.message || e) }))
+  const hmPromise = skipHermes
+    ? Promise.resolve({ status: 'skipped', message: 'skipHermes=true' })
+    : configureHermes(token, baseUrl).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
+  const [oc, hm] = await Promise.all([ocPromise, hmPromise])
   return {
     openclaw: oc.status,
     openclawMessage: oc.message,
