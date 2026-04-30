@@ -7,8 +7,8 @@ import { useHermesConnectionStore } from '@/stores/hermes/connection'
 const connStore = useHermesConnectionStore()
 
 const options = [
-  { label: '灵境', value: 'openclaw' },
-  { label: '工坊', value: 'hermes' },
+  { label: 'OpenClaw', value: 'openclaw' },
+  { label: 'Hermes Agent', value: 'hermes' },
 ]
 
 const iconMap: Record<string, unknown> = {

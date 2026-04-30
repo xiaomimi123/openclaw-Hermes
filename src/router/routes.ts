@@ -151,7 +151,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'hermes',
         name: 'HermesDashboard',
         component: () => import('@/views/hermes/HermesDashboard.vue'),
-        meta: { title: '工坊概览', icon: 'GridOutline', gateway: 'hermes', section: 'use' },
+        meta: { title: 'Hermes 概览', icon: 'GridOutline', gateway: 'hermes', section: 'use' },
       },
       {
         path: 'hermes/chat',

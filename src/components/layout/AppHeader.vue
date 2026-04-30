@@ -25,21 +25,22 @@ const pageTitle = computed(() => {
 
 const isOpenClaw = computed(() => connStore.currentGateway === 'openclaw')
 
-// "●云端模式" 状态指示:云端账号已登录 + 当前 gateway 状态
+// 状态指示:已登录 + 当前 gateway 连接状态
+// (OpenClaw 走 api.aitoken.homes 中转,Hermes 走本地 :8642)
 const cloudStatus = computed(() => {
   if (!authStore.isAuthenticated) {
     return { text: '未登录', color: '#8E8E93', dot: '#8E8E93' }
   }
   if (isOpenClaw.value) {
     if (wsStore.state === ConnectionState.CONNECTED) {
-      return { text: '云端模式', color: 'currentColor', dot: '#34C759' }
+      return { text: 'OpenClaw 已连接', color: 'currentColor', dot: '#34C759' }
     }
     if (wsStore.state === ConnectionState.CONNECTING || wsStore.state === ConnectionState.RECONNECTING) {
-      return { text: '连接中…', color: '#8E8E93', dot: '#FFCC00' }
+      return { text: 'OpenClaw 连接中…', color: '#8E8E93', dot: '#FFCC00' }
     }
-    return { text: '云端模式', color: 'currentColor', dot: '#34C759' }
+    return { text: 'OpenClaw 未连接', color: '#8E8E93', dot: '#FF3B30' }
   }
-  return { text: '工坊模式', color: 'currentColor', dot: '#34C759' }
+  return { text: 'Hermes Agent 已连接', color: 'currentColor', dot: '#34C759' }
 })
 
 async function handleLogout() {
