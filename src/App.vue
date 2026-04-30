@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onMounted, onUnmounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import {
   NConfigProvider,
   NMessageProvider,
@@ -13,12 +13,33 @@ import {
 } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { useTheme } from "@/composables/useTheme";
+import { useLingjingTheme } from "@/composables/useLingjingTheme";
 import { useLocaleStore } from "@/stores/locale";
 
 const { theme } = useTheme();
+const { themeOverrides } = useLingjingTheme();
 const route = useRoute();
+const router = useRouter();
 const localeStore = useLocaleStore();
 const { t } = useI18n();
+
+// Mac 习惯快捷键 ⌘+, → 设置
+function handleKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+    e.preventDefault();
+    if (router.currentRoute.value.name !== 'Settings') {
+      router.push({ name: 'Settings' });
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 
 const naiveLocale = computed(() =>
   localeStore.locale === "zh-CN" ? zhCN : enUS,
@@ -33,11 +54,11 @@ watch(
   ([titleKey]) => {
     if (typeof document === "undefined") return;
     if (!titleKey) {
-      document.title = "OpenClaw Admin";
+      document.title = "灵境";
       return;
     }
     const title = t(titleKey);
-    document.title = `${title} - OpenClaw Admin`;
+    document.title = `${title} - 灵境`;
   },
   { immediate: true },
 );
@@ -46,6 +67,7 @@ watch(
 <template>
   <NConfigProvider
     :theme="theme"
+    :theme-overrides="themeOverrides"
     :locale="naiveLocale"
     :date-locale="naiveDateLocale"
   >

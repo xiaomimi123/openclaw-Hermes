@@ -1,0 +1,232 @@
+/* ============================================================================
+ * 灵境对话样式覆盖 v2 —— ChatGPT/豆包 极简风
+ * 用 html 前缀提高优先级,胜过 Vue scoped CSS (data-v-xxx)
+ * ============================================================================ */
+
+/* 1. 清掉所有工作台技术细节 -------------------------------------------- */
+html .chat-page .chat-token-metrics,
+html .chat-page .chat-token-chip,
+html .chat-page .app-toolbar-btn--refresh,
+html .chat-page .chat-grid-side,
+html .chat-page .chat-side-card,
+html .chat-page .chat-side-collapse-btn,
+html .chat-page .chat-quick-footnote,
+html .chat-page .chat-debug-toggle,
+html .chat-page .chat-bubble-meta,           /* 用户/助手/模型/时间戳 */
+html .chat-page .chat-content-copy-btn,      /* hover 复制 */
+html .chat-page button[class*="expand-detail"],
+html .chat-page .chat-input-extra,
+html .chat-page button.is-clear,
+html .chat-page button[class*="clear-input"] {
+  display: none !important;
+}
+
+/* 隐藏标题、顶部 toolbar */
+html .chat-page .chat-root-card > .n-card-header {
+  display: none !important;
+}
+
+html .chat-page .chat-root-card > .n-card__content > .app-toolbar:first-child {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}
+
+html .chat-page .chat-root-card {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html .chat-page .chat-root-card > .n-card__content {
+  padding: 0 !important;
+}
+
+html .chat-page {
+  padding: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 2. 让对话区域居中 + 占满 -------------------------------------------- */
+html .chat-page .chat-grid {
+  display: block !important;
+  flex: 1 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+html .chat-page .chat-grid > .n-grid-item:not(.chat-grid-side) {
+  width: 100% !important;
+  max-width: 880px !important;
+  margin: 0 auto !important;
+  grid-column: unset !important;
+  height: 100% !important;
+}
+
+html .chat-page .chat-grid-main {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 3. 消息气泡:灰度,无边框 -------------------------------------------- */
+html .chat-page .chat-bubble,
+html .chat-page .chat-bubble.is-user,
+html .chat-page .chat-bubble.is-assistant,
+html .chat-page .chat-bubble.is-tool,
+html .chat-page .chat-bubble.is-system {
+  border: none !important;
+  outline: none !important;
+  border-radius: 12px !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+/* 用户消息:右对齐,深灰填充(像 iMessage / 豆包) */
+html .chat-page .chat-bubble.is-user {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  margin-bottom: 18px !important;
+  padding: 10px 14px !important;
+  width: fit-content !important;
+  max-width: min(560px, 80%) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--n-text-color) !important;
+}
+
+/* 助手消息:左对齐,纯文字流(像 ChatGPT,无气泡背景) */
+html .chat-page .chat-bubble.is-assistant {
+  margin-right: auto !important;
+  margin-left: 0 !important;
+  margin-bottom: 18px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: var(--n-text-color) !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 工具调用:小巧虚线框 */
+html .chat-page .chat-bubble.is-tool {
+  margin-right: auto !important;
+  margin-bottom: 12px !important;
+  padding: 8px 12px !important;
+  background: transparent !important;
+  border: 1px dashed var(--n-divider-color) !important;
+  font-size: 12.5px !important;
+  color: var(--n-text-color-3) !important;
+  border-radius: 8px !important;
+  max-width: min(480px, 70%) !important;
+}
+
+/* 系统消息(Compaction 等):居中淡灰小字,完全无边框 */
+html .chat-page .chat-bubble.is-system {
+  margin: 4px auto 12px !important;
+  padding: 4px 12px !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 11.5px !important;
+  color: var(--n-text-color-disabled) !important;
+  text-align: center !important;
+  max-width: 600px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase;
+}
+
+/* 4. 暗色主题适配 ----------------------------------------------------- */
+:root[data-theme='dark'] html .chat-page .chat-bubble.is-user {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 5. Markdown 内容样式 ------------------------------------------------ */
+html .chat-page .chat-markdown {
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+}
+
+html .chat-page .chat-markdown :deep(p),
+html .chat-page .chat-markdown p {
+  margin: 0 0 8px !important;
+}
+
+html .chat-page .chat-markdown :deep(p:last-child),
+html .chat-page .chat-markdown p:last-child {
+  margin-bottom: 0 !important;
+}
+
+html .chat-page .chat-markdown :deep(pre),
+html .chat-page .chat-markdown pre {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid var(--n-divider-color) !important;
+  border-radius: 8px !important;
+  padding: 12px 14px !important;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-size: 12.5px !important;
+}
+
+:root[data-theme='dark'] html .chat-page .chat-markdown :deep(pre),
+:root[data-theme='dark'] html .chat-page .chat-markdown pre {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+html .chat-page .chat-markdown :deep(p code),
+html .chat-page .chat-markdown :deep(li code),
+html .chat-page .chat-markdown p code,
+html .chat-page .chat-markdown li code {
+  background: rgba(0, 0, 0, 0.06) !important;
+  padding: 1px 5px !important;
+  border-radius: 4px !important;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-size: 0.92em !important;
+}
+
+:root[data-theme='dark'] html .chat-page .chat-markdown :deep(p code),
+:root[data-theme='dark'] html .chat-page .chat-markdown :deep(li code),
+:root[data-theme='dark'] html .chat-page .chat-markdown p code,
+:root[data-theme='dark'] html .chat-page .chat-markdown li code {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 6. 隐藏底部状态条 ---------------------------------------------------- */
+/* 输入框下面的"空闲" / "等待响应..." pill — 视觉太花,只在 sending 时短暂显示就行 */
+html .chat-page [class*="agent-status"],
+html .chat-page [class*="phase-tag"],
+html .chat-page .chat-input-status-tag {
+  display: none !important;
+}
+
+/* "当前发送到: main | Enter 发送, Shift+Enter 换行..." 这种技术 hint */
+html .chat-page .chat-input-hint,
+html .chat-page [class*="send-hint"] {
+  display: none !important;
+}
+
+/* 7. 工具结果绿色 pill —— 改成中性灰 -------------------------------- */
+html .chat-page .n-tag--success-type,
+html .chat-page .n-tag--info-type,
+html .chat-page .chat-tool-tag {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--n-text-color-3) !important;
+  border: 1px solid var(--n-divider-color) !important;
+}
+
+:root[data-theme='dark'] html .chat-page .n-tag--success-type,
+:root[data-theme='dark'] html .chat-page .n-tag--info-type {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 8. 输入区域美化 ------------------------------------------------------ */
+html .chat-page .chat-input-card,
+html .chat-page .chat-input-area,
+html .chat-page .chat-composer {
+  border-radius: 12px !important;
+  border: 1px solid var(--n-border-color) !important;
+  background: var(--n-card-color) !important;
+  padding: 10px 12px !important;
+}
+
+html .chat-page textarea.n-input__textarea-el {
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}

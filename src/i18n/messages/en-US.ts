@@ -94,8 +94,8 @@ export default {
       upgradeToVersion: 'Upgrade to specific version',
       selectVersion: 'Select version',
       upgrade: 'Upgrade',
-      updatingMessage: 'Updating OpenClaw, please wait...',
-      updateSuccessManual: 'Update successful! {message}Please restart OpenClaw manually to apply the update.',
+      updatingMessage: 'Updating Lingjing, please wait...',
+      updateSuccessManual: 'Update successful! {message}Please restart Lingjing manually to apply the update.',
       updateFailed: 'Update failed: {error}',
       unknownError: 'Unknown error',
       fetchVersionsFailed: 'Failed to fetch version list, using default version',
@@ -104,7 +104,7 @@ export default {
   },
   pages: {
     login: {
-      subtitle: 'Connect to OpenClaw Gateway or Hermes Agent to manage your AI assistant',
+      subtitle: 'Connect to Lingjing Gateway or Hermes Agent to manage your AI assistant',
       gatewayUrlLabel: 'Gateway URL',
       gatewayUrlPlaceholder: 'ws://127.0.0.1:18789',
       tokenLabel: 'Gateway Token',
@@ -150,7 +150,7 @@ export default {
         },
         bundled: {
           title: 'Bundled skills',
-          description: 'Provided with OpenClaw (can control whether visible in Chat)',
+          description: 'Provided with Lingjing (can control whether visible in Chat)',
           empty: 'No bundled skills available',
         },
       },
@@ -297,7 +297,7 @@ export default {
     },
     memory: {
       title: 'Memory & Docs',
-      coveredDocsPrefix: 'Covers OpenClaw managed docs: ',
+      coveredDocsPrefix: 'Covers Lingjing managed docs: ',
       coveredDocsSuffix: '.',
       gatewayLimited: 'This Gateway may not support agents.files.* or permission is restricted: {error}',
       agentPlaceholder: 'Select agent',
@@ -906,7 +906,7 @@ export default {
     },
     dashboard: {
       hero: {
-        title: 'OpenClaw overview',
+        title: 'Lingjing overview',
         subtitle: 'Use official Usage aggregates to track tokens/cost, active sessions, and error distribution, then drill down into sessions.',
       },
       connection: {
@@ -1087,7 +1087,7 @@ export default {
         error: 'TTS synthesis failed',
       },
       input: {
-        placeholder: 'Type a message (type / for OpenClaw commands, Enter to send, Shift+Enter for new line)',
+        placeholder: 'Type a message (type / for Lingjing commands, Enter to send, Shift+Enter for new line)',
         sendHint: 'Sending to: {key} | Enter send, Shift+Enter newline, Ctrl/Cmd+Enter send',
       },
       quickReplies: {
@@ -1121,7 +1121,7 @@ export default {
         },
       },
       slash: {
-        title: 'OpenClaw slash commands',
+        title: 'Lingjing slash commands',
         hint: 'Up/Down select, Tab apply, Enter apply or send, Esc exit',
         categories: {
           common: 'Common',
@@ -1508,7 +1508,7 @@ export default {
       themeLight: 'Light',
       themeDark: 'Dark',
       about: 'About',
-      aboutLine1: 'OpenClaw Gateway admin console',
+      aboutLine1: 'Lingjing Gateway admin console',
       aboutLine2: 'Built with Vue 3 + Naive UI',
       connectionManagedByBackend: 'Gateway connection is managed by backend server. Please configure in System Settings',
       envSettings: 'Environment Variables',
@@ -1516,17 +1516,17 @@ export default {
       authUsernamePlaceholder: 'Enter username',
       authPassword: 'Password',
       authPasswordPlaceholder: 'Enter password',
-      openclawUrl: 'OpenClaw URL',
+      openclawUrl: 'Lingjing URL',
       openclawUrlPlaceholder: 'ws://localhost:18789',
-      openclawToken: 'OpenClaw Token',
+      openclawToken: 'Lingjing Token',
       openclawTokenPlaceholder: 'Enter Token',
-      openclawPassword: 'OpenClaw Password',
+      openclawPassword: 'Lingjing Password',
       openclawPasswordPlaceholder: 'Enter Gateway password (alternative to Token)',
       loadFailed: 'Failed to load configuration',
       save: 'Save',
       saveSuccess: 'Configuration saved and applied',
       saveFailed: 'Failed to save configuration',
-      envSettingsHint: 'Gateway will reconnect automatically after changing OpenClaw URL or Token.',
+      envSettingsHint: 'Gateway will reconnect automatically after changing Lingjing URL or Token.',
       tts: {
         title: 'Text-to-Speech Settings',
         hint: 'Configure Text-to-Speech (TTS) parameters. Uses browser built-in Web Speech API, no network required. Settings are saved in browser local storage.',
@@ -1838,7 +1838,7 @@ export default {
         workspace: 'Workspace',
         workspacePlaceholder: 'e.g. ~/.openclaw/workspace-work',
         name: 'Name',
-        namePlaceholder: 'e.g. OpenClaw',
+        namePlaceholder: 'e.g. Lingjing',
         theme: 'Theme',
         themePlaceholder: 'e.g. space lobster',
         emoji: 'Emoji',
@@ -2332,7 +2332,7 @@ export default {
       info: {
         title: 'Backup Information',
         whatIsBackup: 'What is a backup?',
-        backupContent: 'Backup includes: database (SQLite), OpenClaw configuration, Web Admin config, sessions data, workspace metadata, Wizard database, etc.',
+        backupContent: 'Backup includes: database (SQLite), Lingjing configuration, Web Admin config, sessions data, workspace metadata, Wizard database, etc.',
         restoreNote: 'Restore Note',
         restoreContent: 'A backup of the current database will be created before restoration. Some configurations may require a service restart to take effect.',
       },
@@ -2341,10 +2341,10 @@ export default {
         creatingBackup: 'Creating backup...',
         wizardDb: 'Backing up project database...',
         envConfig: 'Backing up environment config...',
-        openclawBackup: 'Backing up OpenClaw data...',
+        openclawBackup: 'Backing up Lingjing data...',
         creatingZip: 'Creating archive...',
         extractingZip: 'Extracting backup file...',
-        restoringOpenclaw: 'Restoring OpenClaw data...',
+        restoringOpenclaw: 'Restoring Lingjing data...',
         restoringDb: 'Restoring project database...',
         restoringEnv: 'Restoring environment config...',
         cleaningUp: 'Cleaning up temporary files...',

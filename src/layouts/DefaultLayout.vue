@@ -6,10 +6,12 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useHermesConnectionStore } from '@/stores/hermes/connection'
+import { useLingjingBillingStore } from '@/stores/lingjing-billing'
 
 const collapsed = ref(false)
 const wsStore = useWebSocketStore()
 const connStore = useHermesConnectionStore()
+const billingStore = useLingjingBillingStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -19,11 +21,10 @@ onMounted(() => {
   if (isOpenClaw.value) {
     wsStore.connect()
   } else {
-    // Hermes 模式：自动连接 Hermes
     connStore.connect()
   }
+  billingStore.startPolling()
 
-  // 如果当前页面不属于当前网关，自动跳转
   const currentGateway = isOpenClaw.value ? 'openclaw' : 'hermes'
   const routeGateway = route.meta?.gateway as string | undefined
   if (routeGateway && routeGateway !== currentGateway) {
@@ -37,11 +38,8 @@ watch(isOpenClaw, (val) => {
     connStore.disconnect()
   } else {
     wsStore.disconnect()
-    // Hermes 模式：自动连接 Hermes
     connStore.connect()
   }
-
-  // 网关切换时，如果当前页面不属于新网关，自动跳转到首页
   const currentGateway = val ? 'openclaw' : 'hermes'
   const routeGateway = route.meta?.gateway as string | undefined
   if (routeGateway && routeGateway !== currentGateway) {
@@ -51,6 +49,7 @@ watch(isOpenClaw, (val) => {
 
 onUnmounted(() => {
   wsStore.disconnect()
+  billingStore.stopPolling()
 })
 </script>
 

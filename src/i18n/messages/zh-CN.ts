@@ -94,8 +94,8 @@ export default {
       upgradeToVersion: '指定版本升级',
       selectVersion: '选择版本号',
       upgrade: '升级',
-      updatingMessage: '正在更新 OpenClaw，请稍候...',
-      updateSuccessManual: '更新成功！{message}请手动重启 OpenClaw 以应用更新。',
+      updatingMessage: '正在更新 灵境，请稍候...',
+      updateSuccessManual: '更新成功！{message}请手动重启 灵境 以应用更新。',
       updateFailed: '更新失败：{error}',
       unknownError: '未知错误',
       fetchVersionsFailed: '获取版本列表失败，使用默认版本',
@@ -104,7 +104,7 @@ export default {
   },
   pages: {
     login: {
-      subtitle: '连接 OpenClaw Gateway 或 Hermes Agent 管理你的 AI 助手',
+      subtitle: '你的 AI 创客助手',
       gatewayUrlLabel: 'Gateway 地址',
       gatewayUrlPlaceholder: 'ws://127.0.0.1:18789',
       tokenLabel: 'Gateway Token',
@@ -150,7 +150,7 @@ export default {
         },
         bundled: {
           title: '系统内置插件',
-          description: '随 OpenClaw 一起提供（可控制是否在 Chat 中可选）',
+          description: '随 灵境 一起提供（可控制是否在 Chat 中可选）',
           empty: '当前没有内置插件',
         },
       },
@@ -297,7 +297,7 @@ export default {
     },
     memory: {
       title: '记忆与文档管理',
-      coveredDocsPrefix: '覆盖 OpenClaw 官方可管理文档：',
+      coveredDocsPrefix: '覆盖 灵境 官方可管理文档：',
       coveredDocsSuffix: '。',
       gatewayLimited: '当前网关可能不支持 agents.files.* 或权限受限：{error}',
       agentPlaceholder: '选择多智能体',
@@ -909,7 +909,7 @@ export default {
     },
     dashboard: {
       hero: {
-        title: 'OpenClaw 运行总览',
+        title: '灵境 运行总览',
         subtitle: '用官方 Usage 聚合数据看 token/cost、活跃会话、错误分布，再进入具体会话处理。',
       },
       connection: {
@@ -1090,7 +1090,7 @@ export default {
         error: '语音合成失败',
       },
       input: {
-        placeholder: '输入消息（输入 / 可查看 OpenClaw 命令，Enter 发送，Shift+Enter 换行）',
+        placeholder: '给灵境发消息...',
         sendHint: '当前发送到：{key} ｜ Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 发送',
       },
       quickReplies: {
@@ -1124,7 +1124,7 @@ export default {
         },
       },
       slash: {
-        title: 'OpenClaw 斜杠命令',
+        title: '灵境 斜杠命令',
         hint: '↑/↓ 选择，Tab 应用，Enter 应用或发送，Esc 退出',
         categories: {
           common: '常用',
@@ -1511,7 +1511,7 @@ export default {
     themeLight: '浅色模式',
     themeDark: '深色模式',
     about: '关于',
-    aboutLine1: 'OpenClaw Gateway 管理后台',
+    aboutLine1: '灵境 桌面客户端',
     aboutLine2: '基于 Vue 3 + Naive UI 构建',
     connectionManagedByBackend: 'Gateway 连接由后端服务器管理，请在系统设置中配置',
     envSettings: '环境变量设置',
@@ -1519,17 +1519,17 @@ export default {
     authUsernamePlaceholder: '请输入用户名',
     authPassword: '密码',
     authPasswordPlaceholder: '请输入密码',
-    openclawUrl: 'OpenClaw URL',
+    openclawUrl: '灵境 URL',
     openclawUrlPlaceholder: 'ws://localhost:18789',
-    openclawToken: 'OpenClaw Token',
+    openclawToken: '灵境 Token',
     openclawTokenPlaceholder: '请输入 Token',
-    openclawPassword: 'OpenClaw 密码',
+    openclawPassword: '灵境 密码',
     openclawPasswordPlaceholder: '请输入 Gateway 密码（与 Token 二选一）',
     loadFailed: '加载配置失败',
     save: '保存',
     saveSuccess: '配置已保存并生效',
     saveFailed: '保存配置失败',
-    envSettingsHint: '修改 OpenClaw URL 或 Token 后会自动重连 Gateway。',
+    envSettingsHint: '修改 灵境 URL 或 Token 后会自动重连 Gateway。',
     tts: {
       title: '语音合成设置',
       hint: '配置文本转语音 (TTS) 参数。使用浏览器内置 Web Speech API，无需网络连接。设置保存在浏览器本地存储中。',
@@ -1842,7 +1842,7 @@ export default {
         workspace: '工作区',
         workspacePlaceholder: '例如：~/.openclaw/workspace-work',
         name: '名称',
-        namePlaceholder: '例如：OpenClaw',
+        namePlaceholder: '例如：灵境',
         theme: '主题',
         themePlaceholder: '例如：space lobster',
         emoji: 'Emoji',
@@ -2336,7 +2336,7 @@ export default {
       info: {
         title: '备份说明',
         whatIsBackup: '什么是备份？',
-        backupContent: '备份包含：数据库（SQLite）、OpenClaw 配置文件、Web Admin 配置、会话数据、工作区元数据、Wizard 数据库等。',
+        backupContent: '备份包含：数据库（SQLite）、灵境 配置文件、Web Admin 配置、会话数据、工作区元数据、Wizard 数据库等。',
         restoreNote: '恢复提示',
         restoreContent: '恢复备份时会先创建当前数据库的备份副本。恢复后部分配置可能需要重启服务才能生效。',
       },
@@ -2345,10 +2345,10 @@ export default {
         creatingBackup: '正在创建备份...',
         wizardDb: '正在备份项目数据库...',
         envConfig: '正在备份环境配置...',
-        openclawBackup: '正在备份 OpenClaw 数据...',
+        openclawBackup: '正在备份 灵境 数据...',
         creatingZip: '正在创建压缩包...',
         extractingZip: '正在解压备份文件...',
-        restoringOpenclaw: '正在恢复 OpenClaw 数据...',
+        restoringOpenclaw: '正在恢复 灵境 数据...',
         restoringDb: '正在恢复项目数据库...',
         restoringEnv: '正在恢复环境配置...',
         cleaningUp: '正在清理临时文件...',

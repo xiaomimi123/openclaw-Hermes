@@ -1,32 +1,25 @@
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { i18n } from '@/i18n'
-import { getStoredLocale, getSystemLocale, saveLocale, type AppLocale } from '@/i18n/locale'
+import type { AppLocale } from '@/i18n/locale'
 
-function applyLocale(locale: AppLocale) {
-  i18n.global.locale.value = locale
-  if (typeof document === 'undefined') return
-  document.documentElement.setAttribute('lang', locale)
+const FIXED_LOCALE: AppLocale = 'zh-CN'
+
+if (typeof document !== 'undefined') {
+  document.documentElement.setAttribute('lang', FIXED_LOCALE)
 }
+i18n.global.locale.value = FIXED_LOCALE
 
 export const useLocaleStore = defineStore('locale', () => {
-  const stored = getStoredLocale()
-  const locale = ref<AppLocale>(stored || getSystemLocale())
+  const locale = ref<AppLocale>(FIXED_LOCALE)
 
-  watch(locale, (val) => {
-    applyLocale(val)
-  }, { immediate: true })
-
-  function setLocale(next: AppLocale, persist = true) {
-    locale.value = next
-    if (persist) saveLocale(next)
+  function setLocale(_next: AppLocale, _persist = true) {
+    // v1.0 锁定为 zh-CN,保留方法签名以免上游调用方报错
   }
 
   function toggle() {
-    const next: AppLocale = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'
-    setLocale(next, true)
+    // v1.0 锁定为 zh-CN,保留方法签名以免上游调用方报错
   }
 
   return { locale, setLocale, toggle }
 })
-

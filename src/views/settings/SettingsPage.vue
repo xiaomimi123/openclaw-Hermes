@@ -15,12 +15,17 @@ import {
   NSlider,
   NInputNumber,
   NDivider,
+  NCollapse,
+  NCollapseItem,
   useMessage,
 } from 'naive-ui'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useAuthStore } from '@/stores/auth'
+import { useLingjingBillingStore } from '@/stores/lingjing-billing'
+import { formatBalance } from '@/api/lingjing/billing'
 import { useTTSSettings } from '@/composables/useTTSSettings'
 import { useEdgeTTS } from '@/composables/useEdgeTTS'
 import { ConnectionState } from '@/api/types'
@@ -33,8 +38,78 @@ import { NIcon } from 'naive-ui'
 const themeStore = useThemeStore()
 const wsStore = useWebSocketStore()
 const authStore = useAuthStore()
+const billingStore = useLingjingBillingStore()
+const router = useRouter()
 const { t } = useI18n()
 const message = useMessage()
+
+const userEmail = computed(() => authStore.user?.email || authStore.user?.username || '--')
+const userDisplay = computed(() => authStore.user?.display_name || authStore.user?.username || '--')
+const memberId = computed(() => authStore.memberId)
+const balanceUsdDisplay = computed(() => formatBalance(billingStore.quota, 'USD'))
+const usedUsdDisplay = computed(() => formatBalance(billingStore.usedQuota, 'USD'))
+
+function openRecharge() {
+  window.open('https://aitoken.homes', '_blank')
+}
+
+async function handleLogout() {
+  try {
+    wsStore.disconnect()
+  } catch {
+    // ignore
+  }
+  await authStore.logout()
+  router.push({ name: 'Login' })
+}
+
+// 你 aitoken.homes default 分组实际可用的 9 个模型(2026-04-30 实测)
+// 后续如开通更多模型,直接在这里加;不在列表里的会 503"无可用渠道"
+const POPULAR_MODELS = [
+  { label: 'GPT-5.4(平衡,默认)', value: 'gpt-5.4' },
+  { label: 'GPT-5.2(更快、更便宜)', value: 'gpt-5.2' },
+  { label: 'DeepSeek Chat(国产,快)', value: 'deepseek-chat' },
+  { label: 'DeepSeek V4 Pro(最强国产)', value: 'deepseek-v4-pro' },
+  { label: 'Claude Sonnet 4.6(均衡)', value: 'claude-sonnet-4-6' },
+  { label: 'Claude Opus 4.6(强)', value: 'claude-opus-4-6' },
+  { label: 'Claude Opus 4.7(最强)', value: 'claude-opus-4-7' },
+]
+
+const selectedModelId = ref<string>(
+  (authStore as any).getSelectedModel?.() || 'gpt-5.4',
+)
+
+const reconfiguring = ref(false)
+async function handleReconfigure() {
+  reconfiguring.value = true
+  try {
+    // 走主进程路径(绕过浏览器 CORS / cookie 问题)
+    const bridge = (window as any).lingjing
+    if (!bridge?.autoConfigureViaMain) {
+      message.error('Electron bridge 未注入,请重启应用')
+      return
+    }
+    const result = await bridge.autoConfigureViaMain({ modelId: selectedModelId.value })
+    console.info('[settings] autoConfigureViaMain result:', result)
+
+    if (result?.openclaw === 'ok') {
+      // 持久化用户选的模型
+      try { localStorage.setItem('lingjing_selected_model', selectedModelId.value) } catch {}
+      message.success(`已切换到 ${selectedModelId.value},等 Gateway 重启 5 秒后试发消息`)
+    } else if (result?.openclaw === 'error' || result?.openclaw === 'skipped') {
+      message.error(
+        `OpenClaw 配置失败:${result.openclawMessage || result.message || '未知错误'}`,
+      )
+    } else {
+      message.warning('已触发,详细日志看 Console / 主进程终端')
+    }
+  } catch (err: any) {
+    console.error('[settings] handleReconfigure error:', err)
+    message.error(err?.message || '重新配置失败')
+  } finally {
+    reconfiguring.value = false
+  }
+}
 const appTitle = import.meta.env.VITE_APP_TITLE || 'OpenClaw Admin'
 const appVersion = import.meta.env.VITE_APP_VERSION || ''
 
@@ -248,16 +323,77 @@ onMounted(() => {
 
 <template>
   <NSpace vertical :size="16">
-    <NCard :title="t('pages.settings.connectionSettings')" class="app-card">
-      <NAlert :type="connectionStatus.type" :bordered="false">
-        {{ t('pages.settings.currentStatus', { status: connectionStatus.text }) }}
-        <span v-if="wsStore.lastError">（{{ wsStore.lastError }}）</span>
-      </NAlert>
+    <NCard title="灵境账号" class="app-card">
+      <div class="account-grid">
+        <div class="account-row">
+          <span class="account-label">邮箱</span>
+          <span class="account-value">{{ userEmail }}</span>
+        </div>
+        <div class="account-row">
+          <span class="account-label">昵称</span>
+          <span class="account-value">{{ userDisplay }}</span>
+        </div>
+        <div class="account-row">
+          <span class="account-label">创客编号</span>
+          <span class="account-value">NO. {{ memberId }}</span>
+        </div>
+        <div class="account-row">
+          <span class="account-label">当前余额</span>
+          <span class="account-value highlighted">$ {{ balanceUsdDisplay }}</span>
+        </div>
+        <div class="account-row">
+          <span class="account-label">累计消费</span>
+          <span class="account-value">$ {{ usedUsdDisplay }}</span>
+        </div>
+      </div>
+      <div class="model-row">
+        <span class="account-label">默认模型</span>
+        <NSelect
+          v-model:value="selectedModelId"
+          :options="POPULAR_MODELS"
+          size="small"
+          style="max-width: 320px;"
+          filterable
+        />
+      </div>
+
+      <NSpace style="margin-top: 16px;">
+        <NButton type="primary" @click="openRecharge">充值</NButton>
+        <NButton :loading="reconfiguring" type="primary" ghost @click="handleReconfigure">
+          应用模型(重新配置)
+        </NButton>
+        <NButton @click="handleLogout">退出登录</NButton>
+      </NSpace>
     </NCard>
 
-    <NCard :title="t('pages.settings.envSettings')" class="app-card">
-      <NSpin :show="loading">
-        <NForm label-placement="left" label-width="140" style="max-width: 600px;">
+    <NCard :title="t('pages.settings.appearanceSettings')" class="app-card">
+      <NForm label-placement="left" label-width="120" style="max-width: 500px;">
+        <NFormItem :label="t('pages.settings.themeMode')">
+          <NSelect
+            :value="themeStore.mode"
+            :options="themeOptions"
+            @update:value="handleThemeChange"
+          />
+        </NFormItem>
+      </NForm>
+    </NCard>
+
+    <NCollapse class="advanced-collapse">
+      <NCollapseItem title="高级:OpenClaw Gateway 本地连接(可选)" name="gateway">
+        <NAlert type="info" :bordered="false" style="margin-bottom: 12px;">
+          这是本地 OpenClaw Gateway 协议网关的连接配置,**与灵境云端账号无关**。仅当你想使用本地 OpenClaw Gateway 提供的功能(如本地工坊)时才需要填。大多数用户保持默认即可,不影响云端对话。
+        </NAlert>
+
+        <NCard :title="t('pages.settings.connectionSettings')" class="app-card" embedded>
+          <NAlert :type="connectionStatus.type" :bordered="false">
+            {{ t('pages.settings.currentStatus', { status: connectionStatus.text }) }}
+            <span v-if="wsStore.lastError">({{ wsStore.lastError }})</span>
+          </NAlert>
+        </NCard>
+
+        <NCard :title="t('pages.settings.envSettings')" class="app-card" embedded style="margin-top: 12px;">
+          <NSpin :show="loading">
+            <NForm label-placement="left" label-width="140" style="max-width: 600px;">
           <NFormItem :label="t('pages.settings.authUsername')">
             <NInput
               v-model:value="configForm.AUTH_USERNAME"
@@ -313,18 +449,8 @@ onMounted(() => {
         {{ t('pages.settings.envSettingsHint') }}
       </NAlert>
     </NCard>
-
-    <NCard :title="t('pages.settings.appearanceSettings')" class="app-card">
-      <NForm label-placement="left" label-width="120" style="max-width: 500px;">
-        <NFormItem :label="t('pages.settings.themeMode')">
-          <NSelect
-            :value="themeStore.mode"
-            :options="themeOptions"
-            @update:value="handleThemeChange"
-          />
-        </NFormItem>
-      </NForm>
-    </NCard>
+      </NCollapseItem>
+    </NCollapse>
 
     <!-- TTS Settings -->
     <NCard :title="t('pages.settings.tts.title')" class="app-card">
@@ -517,3 +643,62 @@ onMounted(() => {
     </NCard>
   </NSpace>
 </template>
+
+<style scoped>
+.account-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  max-width: 480px;
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--n-divider-color, rgba(0, 0, 0, 0.06));
+  font-size: 13.5px;
+}
+
+.account-row:last-child {
+  border-bottom: none;
+}
+
+.account-label {
+  color: var(--n-text-color-3, #6e6e73);
+}
+
+.account-value {
+  color: var(--n-text-color, #1f1f1f);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-value.highlighted {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--n-text-color);
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--n-divider-color, rgba(0, 0, 0, 0.06));
+}
+
+.model-row .account-label {
+  flex-shrink: 0;
+}
+
+.advanced-collapse :deep(.n-collapse-item__header-main) {
+  font-size: 13.5px;
+  color: var(--n-text-color-3, #6e6e73);
+}
+
+:root[data-theme='dark'] .account-value.highlighted {
+  color: #4d8ec5;
+}
+</style>
