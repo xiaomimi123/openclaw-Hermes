@@ -49,8 +49,8 @@ test.describe('多智能体 CRUD', () => {
     const newCard = page.locator(`.agent-card:has-text("${tag}")`).first()
     await expect(newCard).toBeVisible({ timeout: 3000 })
 
-    // 3) 编辑 —— 改名加上 -edited
-    await newCard.click()
+    // 3) 编辑 —— 改名加上 -edited(点卡片内的"编辑"图标按钮,卡片本身现在是进入对话)
+    await newCard.locator('.action-btn[title="编辑"]').click()
     const editModal = page.locator('.n-modal:has-text("编辑")')
     await expect(editModal).toBeVisible({ timeout: 5000 })
 
@@ -71,10 +71,8 @@ test.describe('多智能体 CRUD', () => {
     await expect(editedCard).toBeVisible({ timeout: 3000 })
     console.log('[test] 编辑后能找到新名字')
 
-    // 4) 删除
-    await editedCard.click()
-    const deleteModal = page.locator('.n-modal:has-text("编辑")')
-    await deleteModal.locator('button:has-text("删除")').click()
+    // 4) 删除 —— 点卡片右侧的删除图标按钮(直接弹 dialog)
+    await editedCard.locator('.action-btn[title="删除"]').click()
 
     // dialog confirm
     const confirmBtn = page.locator('.n-dialog button:has-text("删除")')
