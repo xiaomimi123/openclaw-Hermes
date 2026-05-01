@@ -6,6 +6,7 @@ import { i18n } from '@/i18n'
 import './assets/styles/main.css'
 import './assets/styles/chat-simplify.css'
 import './assets/styles/sessions-simplify.css'
+import './assets/styles/hermes-dashboard-simplify.css'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
