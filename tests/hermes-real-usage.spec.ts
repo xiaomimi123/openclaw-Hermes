@@ -166,55 +166,72 @@ test.describe('Hermes 真实功能 e2e', () => {
   })
 
   // ==========================================================
-  // 3. 自动化任务: 直接 API 创建 → 列表出现 → 删除
-  //    UI 表单调用 createCronJob 时字段映射对不上(本 spec 发现的真实 bug):
-  //      * 前端送 `command`,Hermes 后端期望 `prompt`
-  //      * 同样 `lastStatus / nextRun` 是 camelCase,Hermes 返 snake_case
-  //    这个 bug 在原版 hermes/HermesCronPage 也存在,需要 client.ts 加字段
-  //    映射来修。本测试改成走纯 API 路径,绕开前端字段差异,验证后端可用。
+  // 3. 自动化任务: UI 表单创建 → 列表出现 → 删除
   // ==========================================================
-  test('3. cron: 直接 API 创建 → 列表出现 → 删除', async ({ page, request }) => {
+  test('3. cron: 表单创建 → 列表出现 → 删除', async ({ page, request }) => {
     test.setTimeout(60_000)
     const logs = attachLogCapture(page)
 
     const taskName = `e2e-test-${Date.now()}`
-    // 直接调 backend(cookie 已通过 storageState 带上)
-    const createResp = await request.post('/api/hermes/cron/jobs', {
-      data: {
-        name: taskName,
-        schedule: '0 9 * * *',
-        prompt: 'e2e 自动化测试创建,会自动删除',
-        timezone: 'Asia/Shanghai',
-        enabled: true,
-      },
-    })
-    expect(createResp.ok(), `创建 cron 应成功(实际 ${createResp.status()})`).toBeTruthy()
-    const created = await createResp.json()
-    expect(created.id, '后端应返回 cron job id').toBeTruthy()
-    console.log('cron 任务创建成功:', created.id, taskName)
-
-    // 进入页面看列表是否显示
     await page.goto('/hermes/cron')
     await page.waitForLoadState('domcontentloaded')
-    await page.waitForTimeout(3000)
+    await page.waitForTimeout(2500)
 
-    const bodyText = await page.locator('body').innerText()
-    if (!bodyText.includes(taskName)) {
-      console.warn(
-        `⚠️ 真实 bug: 任务名 "${taskName}" 创建到 Hermes 后端成功,但灵境页面没显示。\n` +
-        `  原因:HermesCronJob 接口字段名错(client.ts:listCronJobs 应做 snake_case→camelCase 映射)。\n` +
-        `  后端返回示例: { name, schedule:{kind,expr,display}, prompt, last_status, next_run_at, ... }\n` +
-        `  前端 type:    { name, schedule:string, command, lastStatus, nextRun, ... }`,
+    // 点"新建任务"
+    await page.getByRole('button', { name: /新建任务/ }).first().click()
+    await page.waitForTimeout(700)
+
+    // 填名称
+    await page.getByPlaceholder(/例如:每日新闻摘要/).first().fill(taskName)
+    // 描述
+    await page.getByPlaceholder(/说明这个任务做什么/).first().fill('e2e 自动化测试创建')
+    // 命令(prompt)
+    await page.getByPlaceholder(/留空则用任务默认 prompt/).first().fill('echo "hello from e2e"')
+    // 点"每小时整点"模板
+    await page.getByRole('button', { name: '每小时整点' }).first().click()
+    await page.waitForTimeout(300)
+
+    // 保存
+    await page.getByRole('button', { name: /^保存$/ }).first().click()
+
+    // 列表应出现该任务
+    await expect.poll(
+      async () => (await page.locator('body').innerText()).includes(taskName),
+      { message: '新建的任务应出现在列表', timeout: 15_000, intervals: [500, 1000] },
+    ).toBeTruthy()
+    console.log('cron 任务通过 UI 创建成功:', taskName)
+
+    await page.screenshot({ path: 'test-results/_real-cron-created.png', fullPage: false })
+
+    // 验证字段显示正确(schedule 应是 "0 * * * *",不是空)
+    const jobRow = page.locator('.job-row', { hasText: taskName }).first()
+    await expect(jobRow).toBeVisible({ timeout: 5_000 })
+    const rowText = await jobRow.innerText()
+    expect(rowText, '行内应显示 cron 表达式').toContain('0 * * * *')
+
+    // 走 UI 删除
+    const deleteBtn = jobRow.locator('button').last()
+    await deleteBtn.click()
+    await page.waitForTimeout(400)
+    await page.getByRole('button', { name: /^删除$/ }).first().click()
+
+    await expect.poll(
+      async () => !(await page.locator('body').innerText()).includes(taskName),
+      { message: '删除后任务应从列表消失', timeout: 10_000, intervals: [500, 1000] },
+    ).toBeTruthy()
+    console.log('cron 任务通过 UI 删除成功')
+
+    // 兜底清理:用 API 再扫一次,如果残留就强删(防止之前 fail run 留垃圾)
+    const list = await request.get('/api/hermes/cron/jobs')
+    if (list.ok()) {
+      const jobs = await list.json()
+      const stale = (Array.isArray(jobs) ? jobs : []).find(
+        (j: any) => j?.name?.startsWith('e2e-test-'),
       )
-    } else {
-      console.log('页面正确显示了新任务')
-      await page.screenshot({ path: 'test-results/_real-cron-created.png', fullPage: false })
+      if (stale) {
+        await request.delete(`/api/hermes/cron/jobs/${stale.id}`)
+      }
     }
-
-    // 删除清理(走 API,稳)
-    const deleteResp = await request.delete(`/api/hermes/cron/jobs/${created.id}`)
-    expect(deleteResp.ok(), `删除 cron 应成功(实际 ${deleteResp.status()})`).toBeTruthy()
-    console.log('cron 任务清理完成')
 
     if (logs.pageErrors.length) throw new Error(`cron 流程有 JS 错误`)
   })

@@ -614,25 +614,29 @@ export class HermesApiClient {
   // --------------------------------------------------------------------------
 
   async listCronJobs(): Promise<HermesCronJob[]> {
-    return this.request<HermesCronJob[]>('/cron/jobs')
+    const raw = await this.request<any[]>('/cron/jobs')
+    return Array.isArray(raw) ? raw.map(fromServerCronJob) : []
   }
 
   async getCronJob(id: string): Promise<HermesCronJob> {
-    return this.request<HermesCronJob>(`/cron/jobs/${encodeURIComponent(id)}`)
+    const raw = await this.request<any>(`/cron/jobs/${encodeURIComponent(id)}`)
+    return fromServerCronJob(raw)
   }
 
   async createCronJob(job: Partial<HermesCronJob>): Promise<HermesCronJob> {
-    return this.request<HermesCronJob>('/cron/jobs', {
+    const raw = await this.request<any>('/cron/jobs', {
       method: 'POST',
-      body: JSON.stringify(job),
+      body: JSON.stringify(toServerCronJob(job)),
     })
+    return fromServerCronJob(raw)
   }
 
   async updateCronJob(id: string, job: Partial<HermesCronJob>): Promise<HermesCronJob> {
-    return this.request<HermesCronJob>(`/cron/jobs/${encodeURIComponent(id)}`, {
+    const raw = await this.request<any>(`/cron/jobs/${encodeURIComponent(id)}`, {
       method: 'PUT',
-      body: JSON.stringify(job),
+      body: JSON.stringify(toServerCronJob(job)),
     })
+    return fromServerCronJob(raw)
   }
 
   async pauseCronJob(id: string): Promise<void> {
@@ -789,5 +793,51 @@ export class HermesApiClient {
   async updateMemory(content: string): Promise<HermesMemoryContent> {
     await this.updateConfig({ memory: { content } })
     return { content, updatedAt: new Date().toISOString(), size: content.length }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Cron 字段映射
+// 后端 schema:command → prompt,schedule:object,snake_case 时间字段
+// 前端 schema:command,schedule:string,camelCase
+// 必须双向映射,否则前端创建任务 422、列表展示字段全空
+// ----------------------------------------------------------------------------
+
+function toServerCronJob(job: Partial<HermesCronJob>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (job.name !== undefined) out.name = job.name
+  if (job.enabled !== undefined) out.enabled = job.enabled
+  if (job.schedule !== undefined) out.schedule = job.schedule // 后端接受字符串,自动包装
+  if (job.command !== undefined) out.prompt = job.command
+  if (job.timezone !== undefined) out.timezone = job.timezone
+  // description 后端没有对应字段,但允许带着,后端会忽略未知字段
+  if (job.description !== undefined) out.description = job.description
+  return out
+}
+
+function fromServerCronJob(raw: any): HermesCronJob {
+  if (!raw || typeof raw !== 'object') {
+    return { id: '', name: '', enabled: false, schedule: '' }
+  }
+  const sched = raw.schedule
+  const scheduleStr =
+    typeof sched === 'string' ? sched
+    : sched && typeof sched === 'object' ? (sched.expr || sched.display || '')
+    : ''
+
+  return {
+    id: raw.id ?? '',
+    name: raw.name ?? '',
+    description: raw.description,
+    enabled: !!raw.enabled,
+    schedule: scheduleStr,
+    command: raw.prompt ?? raw.command,
+    timezone: raw.timezone,
+    nextRun: raw.next_run_at ?? raw.nextRun,
+    lastRun: raw.last_run_at ?? raw.lastRun,
+    lastStatus: raw.last_status ?? raw.lastStatus,
+    lastError: raw.last_error ?? raw.lastError,
+    createdAt: raw.created_at ?? raw.createdAt,
+    updatedAt: raw.updated_at ?? raw.updatedAt,
   }
 }
