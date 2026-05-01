@@ -285,26 +285,15 @@ test.describe('Hermes 真实功能 e2e', () => {
     await page.waitForTimeout(800)
     await page.goto('/hermes/memory')
     await page.waitForLoadState('domcontentloaded')
-    await page.waitForTimeout(2500)
 
     const reloadedTextarea = page.locator('textarea').first()
     await expect(reloadedTextarea).toBeVisible({ timeout: 15_000 })
 
-    // 真实 bug 注释:
-    // navigate 触发 layout 重 mount,Hermes connection 异步,onMounted 里
-    // fetchMemory 可能赶在 connection 完成之前跑(getClientAsync() 返回 null
-    // 导致抛错→ message.error 但 textarea 仍空)。这是 lingjing/HermesMemoryPage.vue
-    // 的真实交互 bug — onMounted 应当等 connection ready 后再 fetchMemory。
-    //
-    // 测试这里通过点"刷新"按钮主动重试,绕过 race;同时记录 console.warn 报告。
-    if (!(await reloadedTextarea.inputValue()).includes(marker)) {
-      console.warn(`⚠️ 真实 bug: navigate 后 textarea 没自动载入 marker(connect race)。手动点刷新…`)
-      await page.getByRole('button', { name: /^刷新$/ }).first().click()
-    }
-
+    // 修复后:HermesMemoryPage.vue watch 了 hermesConnected,connection 就绪
+    // 时自动触发 fetchMemory。textarea 应在 30s 内自动载入,无需手动刷新。
     await expect.poll(
       async () => (await reloadedTextarea.inputValue()).includes(marker),
-      { message: 'textarea 应在 30s 内载入含 E2E 标记的内容(可能需要刷新)', timeout: 30_000, intervals: [500, 1000, 2000] },
+      { message: 'textarea 应在 30s 内自动载入含 E2E 标记的内容', timeout: 30_000, intervals: [500, 1000, 2000] },
     ).toBeTruthy()
 
     const reloadedContent = await reloadedTextarea.inputValue()

@@ -5,12 +5,15 @@ import {
   BookOutline, RefreshOutline, SaveOutline, CheckmarkCircle,
 } from '@vicons/ionicons5'
 import { useHermesMemoryStore } from '@/stores/hermes/memory'
+import { useHermesConnectionStore } from '@/stores/hermes/connection'
 
 const message = useMessage()
 const memoryStore = useHermesMemoryStore()
+const connStore = useHermesConnectionStore()
 
 const draft = ref('')
 const lastSavedAt = ref<number | null>(null)
+const hasFetched = ref(false)
 
 const isDirty = computed(() => draft.value !== memoryStore.memoryContent)
 const charCount = computed(() => draft.value.length)
@@ -23,12 +26,27 @@ watch(
   },
 )
 
+// 初次进页面时 hermes connection 可能还没就绪 — 此时 fetchMemory 抛
+// "Hermes 未连接",textarea 一直空。监听 hermesConnected,连上后自动拉一次。
+watch(
+  () => connStore.hermesConnected,
+  (connected) => {
+    if (connected && !hasFetched.value) {
+      refreshAll()
+    }
+  },
+)
+
 async function refreshAll() {
   try {
     await memoryStore.fetchMemory()
     draft.value = memoryStore.memoryContent
+    hasFetched.value = true
   } catch (error) {
-    message.error(`加载失败: ${error instanceof Error ? error.message : String(error)}`)
+    // connection 未就绪时静默 — 等 watch 触发重试
+    if (connStore.hermesConnected) {
+      message.error(`加载失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 }
 
