@@ -252,8 +252,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/cli',
         name: 'HermesCli',
-        component: () => import('@/views/hermes/HermesCliPage.vue'),
+        component: () => import('@/views/lingjing/HermesCliPage.vue'),
         meta: { title: 'CLI', icon: 'CodeSlashOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/cli-advanced',
+        name: 'HermesCliAdvanced',
+        component: () => import('@/views/hermes/HermesCliPage.vue'),
+        meta: { title: 'CLI(高级)', icon: 'CodeSlashOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/terminal',
