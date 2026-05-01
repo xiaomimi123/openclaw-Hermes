@@ -216,8 +216,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/skills',
         name: 'HermesSkills',
-        component: () => import('@/views/hermes/HermesSkillsPage.vue'),
+        component: () => import('@/views/lingjing/HermesSkillsPage.vue'),
         meta: { title: '技能广场', icon: 'ExtensionPuzzleOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/skills-advanced',
+        name: 'HermesSkillsAdvanced',
+        component: () => import('@/views/hermes/HermesSkillsPage.vue'),
+        meta: { title: '技能广场(高级)', icon: 'ExtensionPuzzleOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/cron',
