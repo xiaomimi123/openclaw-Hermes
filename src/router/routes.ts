@@ -240,8 +240,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/memory',
         name: 'HermesMemory',
-        component: () => import('@/views/hermes/HermesMemoryPage.vue'),
+        component: () => import('@/views/lingjing/HermesMemoryPage.vue'),
         meta: { title: '记忆', icon: 'BookOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/memory-advanced',
+        name: 'HermesMemoryAdvanced',
+        component: () => import('@/views/hermes/HermesMemoryPage.vue'),
+        meta: { title: '记忆(高级)', icon: 'BookOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/cli',
