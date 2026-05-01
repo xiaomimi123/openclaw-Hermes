@@ -204,8 +204,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/channels',
         name: 'HermesChannels',
-        component: () => import('@/views/hermes/HermesChannelsPage.vue'),
+        component: () => import('@/views/lingjing/HermesChannelsPage.vue'),
         meta: { title: '通信渠道', icon: 'GitNetworkOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/channels-advanced',
+        name: 'HermesChannelsAdvanced',
+        component: () => import('@/views/hermes/HermesChannelsPage.vue'),
+        meta: { title: '通信渠道(高级)', icon: 'GitNetworkOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/skills',
