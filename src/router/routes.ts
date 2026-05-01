@@ -228,8 +228,14 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/cron',
         name: 'HermesCron',
-        component: () => import('@/views/hermes/HermesCronPage.vue'),
+        component: () => import('@/views/lingjing/HermesCronPage.vue'),
         meta: { title: '自动化任务', icon: 'CalendarOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/cron-advanced',
+        name: 'HermesCronAdvanced',
+        component: () => import('@/views/hermes/HermesCronPage.vue'),
+        meta: { title: '自动化任务(高级)', icon: 'CalendarOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/memory',
