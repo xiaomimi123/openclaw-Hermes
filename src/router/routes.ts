@@ -180,14 +180,26 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'hermes/sessions',
         name: 'HermesSessions',
-        component: () => import('@/views/hermes/HermesSessionsPage.vue'),
+        component: () => import('@/views/lingjing/HermesSessionsPage.vue'),
         meta: { title: '历史', icon: 'ChatbubblesOutline', gateway: 'hermes', section: 'use' },
+      },
+      {
+        path: 'hermes/sessions-advanced',
+        name: 'HermesSessionsAdvanced',
+        component: () => import('@/views/hermes/HermesSessionsPage.vue'),
+        meta: { title: '历史(高级)', icon: 'ChatbubblesOutline', gateway: 'hermes', section: 'use', hidden: true },
       },
       {
         path: 'hermes/models',
         name: 'HermesModels',
-        component: () => import('@/views/hermes/HermesModelsPage.vue'),
+        component: () => import('@/views/lingjing/HermesModelsPage.vue'),
         meta: { title: '模型管理', icon: 'SparklesOutline', gateway: 'hermes', section: 'build' },
+      },
+      {
+        path: 'hermes/models-advanced',
+        name: 'HermesModelsAdvanced',
+        component: () => import('@/views/hermes/HermesModelsPage.vue'),
+        meta: { title: '模型管理(高级)', icon: 'SparklesOutline', gateway: 'hermes', section: 'build', hidden: true },
       },
       {
         path: 'hermes/channels',
