@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   NSpin, NTag, NButton, NIcon, NEmpty, NModal, NInput, NSpace,
   NForm, NFormItem, NSelect, NTabs, NTabPane,
@@ -11,8 +11,13 @@ import {
   RocketOutline, BagHandleOutline, MegaphoneOutline, BrushOutline,
   CodeSlashOutline, NewspaperOutline, HeadsetOutline,
 } from '@vicons/ionicons5'
-import { useOfficeStore } from '@/stores/office'
 import { useAgentStore } from '@/stores/agent'
+import {
+  listScenarios, createScenario as apiCreateScenario, deleteScenario as apiDeleteScenario,
+  listTasks, createTask as apiCreateTask, listMessages, appendMessage,
+  updateScenario as apiUpdateScenario,
+  type Scenario, type ScenarioTask, type ScenarioMessage,
+} from '@/api/lingjing/scenarios'
 
 // ============ 公司模板:角色定义 ============
 interface RoleDef {
@@ -148,60 +153,74 @@ const TEMPLATES: CompanyTemplate[] = [
   },
 ]
 
-// ============ 公司元数据(localStorage 持久化) ============
-interface CompanyMeta {
-  scenarioId: string
-  templateKey: string
-  roleAssignments: Record<string, string> // roleKey → agentId
-  createdAt: number
-}
-
-const STORAGE_KEY = 'lingjing_companies'
-
-function loadCompanyMetas(): Record<string, CompanyMeta> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
-    return JSON.parse(raw) as Record<string, CompanyMeta>
-  } catch {
-    return {}
-  }
-}
-
-function saveCompanyMetas(metas: Record<string, CompanyMeta>) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(metas))
-  } catch {
-    // ignore
-  }
-}
-
-const companyMetas = ref<Record<string, CompanyMeta>>({})
-
-watch(
-  companyMetas,
-  (val) => saveCompanyMetas(val),
-  { deep: true },
-)
-
 // ============ Stores ============
 const message = useMessage()
 const dialog = useDialog()
-const officeStore = useOfficeStore()
 const agentStore = useAgentStore()
 
-// 只显示 lingjing_companies 里登记的(纯 workshop scenarios 不显示在这里)
+// 公司列表(从 server SQLite 拉)
+const scenarios = ref<Scenario[]>([])
+const loading = ref(false)
+const lastError = ref('')
+
+async function loadCompanies() {
+  loading.value = true
+  lastError.value = ''
+  try {
+    scenarios.value = await listScenarios('company')
+  } catch (err: any) {
+    lastError.value = err?.message || '加载公司列表失败'
+  } finally {
+    loading.value = false
+  }
+}
+
 const companies = computed(() => {
-  return Object.values(companyMetas.value)
-    .map((meta) => {
-      const scenario = officeStore.scenarios.find((s) => s.id === meta.scenarioId)
-      const template = TEMPLATES.find((t) => t.key === meta.templateKey)
-      if (!scenario || !template) return null
-      return { meta, scenario, template }
+  return scenarios.value
+    .map((scenario) => {
+      const template = TEMPLATES.find((t) => t.key === scenario.templateKey)
+      if (!template) return null
+      return { scenario, template }
     })
     .filter((x): x is NonNullable<typeof x> => !!x)
-    .sort((a, b) => b.meta.createdAt - a.meta.createdAt)
 })
+
+// localStorage 一次性迁移到 SQLite(老用户首次升级时把数据搬过来)
+const MIGRATED_KEY = 'lingjing_companies_migrated_v1'
+async function migrateLocalStorageOnce() {
+  if (localStorage.getItem(MIGRATED_KEY) === '1') return
+  try {
+    const raw = localStorage.getItem('lingjing_companies')
+    if (raw) {
+      const metas = JSON.parse(raw) as Record<string, {
+        scenarioId: string
+        templateKey: string
+        roleAssignments: Record<string, string>
+        createdAt: number
+      }>
+      for (const meta of Object.values(metas)) {
+        try {
+          await apiCreateScenario({
+            id: meta.scenarioId,
+            name: '迁移自旧数据',
+            description: '',
+            scenarioType: 'company',
+            templateKey: meta.templateKey,
+            roleAssignments: meta.roleAssignments,
+            agents: Object.values(meta.roleAssignments).filter(Boolean),
+          })
+        } catch {
+          // 重复 id 等错误,跳过
+        }
+      }
+    }
+  } catch {
+    // ignore
+  } finally {
+    localStorage.setItem(MIGRATED_KEY, '1')
+    localStorage.removeItem('lingjing_companies')
+  }
+}
 
 const allAgents = computed(() => agentStore.agents)
 const allAgentOptions = computed(() =>
@@ -269,26 +288,18 @@ async function wizardFinish() {
 
   wizardSubmitting.value = true
   try {
-    // 1. 创建 scenario(底层 workshop 数据)
-    const scenario = officeStore.createScenario({
+    const scenario = await apiCreateScenario({
       name: wizardCompanyName.value.trim(),
       description: tpl.description,
+      scenarioType: 'company',
+      templateKey: tpl.key,
+      roleAssignments: { ...wizardAssignments.value },
+      agents: Array.from(new Set(assignedAgentIds)),
+      status: 'active',
     })
-    scenario.agents = Array.from(new Set(assignedAgentIds))
-
-    // 2. 公司元数据存 localStorage(关联 scenario + 模板 + 角色分配)
-    companyMetas.value = {
-      ...companyMetas.value,
-      [scenario.id]: {
-        scenarioId: scenario.id,
-        templateKey: tpl.key,
-        roleAssignments: { ...wizardAssignments.value },
-        createdAt: Date.now(),
-      },
-    }
-
     message.success(`公司 "${scenario.name}" 已创建`)
     showWizard.value = false
+    await loadCompanies()
   } catch (err: any) {
     message.error(err?.message || '创建失败')
   } finally {
@@ -300,42 +311,50 @@ async function wizardFinish() {
 const showDetail = ref(false)
 const detailScenarioId = ref<string>('')
 const detailTab = ref<'org' | 'tasks' | 'comm'>('org')
+const detailTasksList = ref<ScenarioTask[]>([])
+const detailMessagesList = ref<ScenarioMessage[]>([])
 
-function openDetail(scenarioId: string) {
+async function openDetail(scenarioId: string) {
   detailScenarioId.value = scenarioId
-  officeStore.activateScenario(scenarioId)
   detailTab.value = 'org'
   showDetail.value = true
+  await Promise.all([refreshDetailTasks(), refreshDetailMessages()])
+}
+
+async function refreshDetailTasks() {
+  if (!detailScenarioId.value) return
+  try {
+    detailTasksList.value = await listTasks(detailScenarioId.value)
+  } catch {
+    detailTasksList.value = []
+  }
+}
+
+async function refreshDetailMessages() {
+  if (!detailScenarioId.value) return
+  try {
+    detailMessagesList.value = await listMessages(detailScenarioId.value)
+  } catch {
+    detailMessagesList.value = []
+  }
 }
 
 const detailCompany = computed(() => {
-  const meta = companyMetas.value[detailScenarioId.value]
-  if (!meta) return null
-  const scenario = officeStore.scenarios.find((s) => s.id === meta.scenarioId)
-  const template = TEMPLATES.find((t) => t.key === meta.templateKey)
-  if (!scenario || !template) return null
-  return { meta, scenario, template }
+  const scenario = scenarios.value.find((s) => s.id === detailScenarioId.value)
+  if (!scenario) return null
+  const template = TEMPLATES.find((t) => t.key === scenario.templateKey)
+  if (!template) return null
+  return { scenario, template }
 })
 
-const detailTasks = computed(() => {
-  const co = detailCompany.value
-  if (!co) return []
-  return officeStore.tasks.filter((t) => co.scenario.tasks.some((st) => st.id === t.id))
-})
-
-const detailMessages = computed(() => {
-  const co = detailCompany.value
-  if (!co) return []
-  return officeStore.messages
-    .filter((m) => co.scenario.agents.includes(m.fromAgent) || co.scenario.agents.includes(m.toAgent) || m.toAgent === 'all')
-    .sort((a, b) => a.timestamp - b.timestamp)
-})
+const detailTasks = computed(() => detailTasksList.value)
+const detailMessages = computed(() => detailMessagesList.value)
 
 // 仪表盘指标
 const dashboard = computed(() => {
   const co = detailCompany.value
   if (!co) return null
-  const tasks = detailTasks.value
+  const tasks = detailTasksList.value
   return {
     members: co.scenario.agents.length,
     totalRoles: co.template.roles.length,
@@ -365,10 +384,10 @@ function openDispatch(roleKey: string) {
   showDispatch.value = true
 }
 
-function handleDispatch() {
+async function handleDispatch() {
   const co = detailCompany.value
   if (!co) return
-  const agentId = co.meta.roleAssignments[dispatchRoleKey.value]
+  const agentId = co.scenario.roleAssignments[dispatchRoleKey.value]
   if (!agentId) {
     message.warning('该角色未分配智能体')
     return
@@ -377,14 +396,25 @@ function handleDispatch() {
     message.warning('请填写任务标题')
     return
   }
-  officeStore.createTask({
-    title: dispatchTaskTitle.value.trim(),
-    description: dispatchTaskDesc.value.trim() || dispatchTaskTitle.value.trim(),
-    assignedTo: [agentId],
-    priority: 'medium',
-  })
-  message.success(`任务已派发给 ${agentName(agentId)}`)
-  showDispatch.value = false
+  try {
+    await apiCreateTask(co.scenario.id, {
+      title: dispatchTaskTitle.value.trim(),
+      description: dispatchTaskDesc.value.trim() || dispatchTaskTitle.value.trim(),
+      assignedAgents: [agentId],
+      priority: 'medium',
+    })
+    await appendMessage(co.scenario.id, {
+      fromAgent: 'user',
+      toAgent: agentId,
+      content: `新任务派发:${dispatchTaskTitle.value.trim()}`,
+      type: 'task',
+    })
+    message.success(`任务已派发给 ${agentName(agentId)}`)
+    showDispatch.value = false
+    await Promise.all([refreshDetailTasks(), refreshDetailMessages()])
+  } catch (err: any) {
+    message.error(err?.message || '派发失败')
+  }
 }
 
 function deleteCompany(scenarioId: string) {
@@ -395,17 +425,15 @@ function deleteCompany(scenarioId: string) {
     content: `解散 "${co.scenario.name}"?关联的任务和消息将清空,但智能体本身保留。`,
     positiveText: '解散',
     negativeText: '取消',
-    onPositiveClick: () => {
-      // 清 localStorage 元数据
-      const next = { ...companyMetas.value }
-      delete next[scenarioId]
-      companyMetas.value = next
-      // 清 office 数据
-      officeStore.scenarios = officeStore.scenarios.filter((s) => s.id !== scenarioId)
-      officeStore.tasks = officeStore.tasks.filter((t) => !co.scenario.tasks.some((st) => st.id === t.id))
-      if (officeStore.currentScenario?.id === scenarioId) officeStore.currentScenario = null
-      if (detailScenarioId.value === scenarioId) showDetail.value = false
-      message.success('已解散')
+    onPositiveClick: async () => {
+      try {
+        await apiDeleteScenario(scenarioId)
+        if (detailScenarioId.value === scenarioId) showDetail.value = false
+        message.success('已解散')
+        await loadCompanies()
+      } catch (err: any) {
+        message.error(err?.message || '解散失败')
+      }
     },
   })
 }
@@ -419,10 +447,11 @@ function formatRelTime(ts: number): string {
 }
 
 onMounted(async () => {
-  companyMetas.value = loadCompanyMetas()
   if (allAgents.value.length === 0) {
     await agentStore.fetchAgents().catch(() => {})
   }
+  await migrateLocalStorageOnce()
+  await loadCompanies()
 })
 </script>
 
@@ -462,7 +491,7 @@ onMounted(async () => {
             <span class="meta-sep">·</span>
             <span>{{ co.template.roles.length }} 个角色</span>
             <span class="meta-sep">·</span>
-            <span>{{ formatRelTime(co.meta.createdAt) }}创建</span>
+            <span>{{ formatRelTime(co.scenario.createdAt) }}创建</span>
           </div>
         </div>
         <button
@@ -644,7 +673,7 @@ onMounted(async () => {
                 v-for="role in detailCompany.template.roles"
                 :key="role.key"
                 class="role-card"
-                :class="{ 'is-vacant': !detailCompany.meta.roleAssignments[role.key] }"
+                :class="{ 'is-vacant': !detailCompany.scenario.roleAssignments[role.key] }"
                 @click="openDispatch(role.key)"
               >
                 <div class="role-card-header">
@@ -652,11 +681,11 @@ onMounted(async () => {
                   <span class="role-card-desc">{{ role.description }}</span>
                 </div>
                 <div class="role-card-agent">
-                  <template v-if="detailCompany.meta.roleAssignments[role.key]">
+                  <template v-if="detailCompany.scenario.roleAssignments[role.key]">
                     <div class="role-avatar">
-                      {{ agentName(detailCompany.meta.roleAssignments[role.key]).slice(0, 1).toUpperCase() }}
+                      {{ agentName(detailCompany.scenario.roleAssignments[role.key]).slice(0, 1).toUpperCase() }}
                     </div>
-                    <span class="role-agent-name">{{ agentName(detailCompany.meta.roleAssignments[role.key]) }}</span>
+                    <span class="role-agent-name">{{ agentName(detailCompany.scenario.roleAssignments[role.key]) }}</span>
                   </template>
                   <span v-else class="role-vacant-text">虚位以待</span>
                 </div>
@@ -681,7 +710,7 @@ onMounted(async () => {
                   <div class="task-title">{{ task.title }}</div>
                   <p class="task-desc">{{ task.description }}</p>
                   <div class="task-meta">
-                    分配给:{{ task.assignedTo.map((id: string) => agentName(id)).join(', ') }} · {{ task.status }}
+                    分配给:{{ task.assignedAgents.map((id: string) => agentName(id)).join(', ') }} · {{ task.status }}
                   </div>
                 </div>
               </div>
@@ -751,7 +780,8 @@ onMounted(async () => {
 
     <p class="page-footnote">
       虚拟公司基于 OpenClaw 多智能体协作能力。每个角色保留独立人设和记忆,
-      派发任务时调用真实智能体执行。元数据本地保存。
+      派发任务时调用真实智能体执行。配置/任务/通信记录持久化在本地数据库
+      (<code>data/wizard.db</code>),刷新或重启不丢。
     </p>
   </div>
 </template>

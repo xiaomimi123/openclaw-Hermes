@@ -14,6 +14,7 @@ import { execSync } from 'child_process'
 import pty from 'node-pty'
 import db, { createBackupRecord, updateBackupRecord, getBackupRecord, getBackupRecords, getBackupRecordsCount, deleteBackupRecord } from './database.js'
 import hermesProxyRouter, { initHermesConfig, setAuthMiddleware } from './hermes-proxy.js'
+import { registerScenarioRoutes } from './scenarios-routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -303,6 +304,9 @@ function authMiddleware(req, res, next) {
 
 // 设置 Hermes 代理的认证中间件
 setAuthMiddleware(authMiddleware)
+
+// 灵境工坊 / 虚拟公司 持久化路由(scenarios + tasks + messages)
+registerScenarioRoutes(app, authMiddleware)
 
 app.get('/api/auth/config', (req, res) => {
   res.json({

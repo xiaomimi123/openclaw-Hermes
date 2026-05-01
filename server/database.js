@@ -58,25 +58,42 @@ db.exec(`
     size INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    scenario_id TEXT,
+    from_agent TEXT,
+    to_agent TEXT,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'task',
+    timestamp INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+    FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_tasks_scenario_id ON tasks(scenario_id);
   CREATE INDEX IF NOT EXISTS idx_scenarios_status ON scenarios(status);
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_backup_records_created_at ON backup_records(created_at);
+  CREATE INDEX IF NOT EXISTS idx_messages_scenario_id ON messages(scenario_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
 `)
 
-try {
-  db.exec('ALTER TABLE scenarios ADD COLUMN execution_log TEXT DEFAULT \'[]\'')
-} catch (e) {
-  if (!e.message.includes('duplicate column name')) {
-    console.error('[Database] Failed to add execution_log column:', e.message)
-  }
-}
-
-try {
-  db.exec('ALTER TABLE tasks ADD COLUMN execution_history TEXT DEFAULT \'[]\'')
-} catch (e) {
-  if (!e.message.includes('duplicate column name')) {
-    console.error('[Database] Failed to add execution_history column:', e.message)
+// 增量迁移:旧库可能没有这些列,以幂等方式 ALTER
+const migrations = [
+  ['scenarios', 'execution_log', `TEXT DEFAULT '[]'`],
+  ['tasks', 'execution_history', `TEXT DEFAULT '[]'`],
+  // 灵境扩展:scenario_type 区分 'workshop' / 'company',
+  // template_key + role_assignments 是虚拟公司专属字段
+  ['scenarios', 'scenario_type', `TEXT DEFAULT 'workshop'`],
+  ['scenarios', 'template_key', `TEXT`],
+  ['scenarios', 'role_assignments', `TEXT DEFAULT '{}'`],
+]
+for (const [table, column, def] of migrations) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`)
+  } catch (e) {
+    if (!e.message.includes('duplicate column name')) {
+      console.error(`[Database] migration ${table}.${column} failed:`, e.message)
+    }
   }
 }
 

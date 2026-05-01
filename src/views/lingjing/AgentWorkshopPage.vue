@@ -10,17 +10,38 @@ import {
   PaperPlaneOutline, ChatbubblesOutline, TrashOutline, CheckmarkCircle,
   AlertCircleOutline, PlayOutline, RocketOutline,
 } from '@vicons/ionicons5'
-import { useOfficeStore } from '@/stores/office'
 import { useAgentStore } from '@/stores/agent'
+import {
+  listScenarios, createScenario as apiCreateScenario, updateScenario as apiUpdateScenario,
+  deleteScenario as apiDeleteScenario,
+  listTasks, createTask as apiCreateTask, updateTask as apiUpdateTask,
+  listMessages, appendMessage,
+  type Scenario, type ScenarioTask, type ScenarioMessage,
+} from '@/api/lingjing/scenarios'
+import { useWebSocketStore } from '@/stores/websocket'
 
 const message = useMessage()
 const dialog = useDialog()
-const officeStore = useOfficeStore()
 const agentStore = useAgentStore()
+const wsStore = useWebSocketStore()
 
 // ============ 列表状态 ============
-const teams = computed(() => officeStore.scenarios)
+const teams = ref<Scenario[]>([])
+const loading = ref(false)
+const lastError = ref('')
 const allAgents = computed(() => agentStore.agents)
+
+async function loadTeams() {
+  loading.value = true
+  lastError.value = ''
+  try {
+    teams.value = await listScenarios('workshop')
+  } catch (err: any) {
+    lastError.value = err?.message || '加载团队列表失败'
+  } finally {
+    loading.value = false
+  }
+}
 
 // ============ 创建团队 wizard ============
 const showWizard = ref(false)
@@ -108,24 +129,24 @@ function wizardPrev() {
 async function wizardFinish() {
   wizardSubmitting.value = true
   try {
-    // 1. 创建场景(团队)
-    const scenario = officeStore.createScenario({
+    const scenario = await apiCreateScenario({
       name: wizardName.value.trim(),
       description: wizardDescription.value.trim(),
+      scenarioType: 'workshop',
+      agents: wizardSelectedAgents.value.slice(),
+      status: wizardFirstTaskTitle.value.trim() ? 'active' : 'draft',
     })
-    // 2. 写入 agents(office store 把 agents 数据从 agentStore 派生,所以这里只挂入选中的 ids)
-    scenario.agents = wizardSelectedAgents.value.slice()
-    // 3. 如果填了首任务,创建并委派给所有选中 agents
     if (wizardFirstTaskTitle.value.trim()) {
-      officeStore.createTask({
+      await apiCreateTask(scenario.id, {
         title: wizardFirstTaskTitle.value.trim(),
         description: wizardFirstTaskDesc.value.trim() || wizardFirstTaskTitle.value.trim(),
-        assignedTo: wizardSelectedAgents.value.slice(),
+        assignedAgents: wizardSelectedAgents.value.slice(),
         priority: wizardFirstTaskPriority.value,
       })
     }
     message.success(`团队 "${scenario.name}" 已创建`)
     showWizard.value = false
+    await loadTeams()
   } catch (err: any) {
     message.error(err?.message || '创建失败')
   } finally {
@@ -137,49 +158,50 @@ async function wizardFinish() {
 const showDetail = ref(false)
 const detailTeamId = ref<string>('')
 const detailTab = ref<'tasks' | 'comm' | 'members'>('tasks')
+const detailTasksList = ref<ScenarioTask[]>([])
+const detailMessagesList = ref<ScenarioMessage[]>([])
 
-function openDetail(scenarioId: string) {
+async function openDetail(scenarioId: string) {
   detailTeamId.value = scenarioId
-  officeStore.activateScenario(scenarioId)
   detailTab.value = 'tasks'
   showDetail.value = true
+  await Promise.all([refreshDetailTasks(), refreshDetailMessages()])
+}
+
+async function refreshDetailTasks() {
+  if (!detailTeamId.value) return
+  try {
+    detailTasksList.value = await listTasks(detailTeamId.value)
+  } catch {
+    detailTasksList.value = []
+  }
+}
+
+async function refreshDetailMessages() {
+  if (!detailTeamId.value) return
+  try {
+    detailMessagesList.value = await listMessages(detailTeamId.value)
+  } catch {
+    detailMessagesList.value = []
+  }
 }
 
 const detailTeam = computed(() => teams.value.find((s) => s.id === detailTeamId.value) || null)
 
 // 任务列表(过滤当前团队的)
-const teamTasks = computed(() =>
-  officeStore.tasks.filter((t) => detailTeam.value?.tasks.some((st) => st.id === t.id) ?? false),
-)
+const teamTasks = computed(() => detailTasksList.value)
 
-// 团队消息(scenario 的 executionLog + 跨 agent message)
-const teamMessages = computed(() => {
-  const log = (detailTeam.value?.executionLog || []) as any[]
-  const msgs = officeStore.messages
-    .filter((m) => {
-      const team = detailTeam.value
-      if (!team) return false
-      const ids = team.agents
-      return ids.includes(m.fromAgent) || ids.includes(m.toAgent) || m.toAgent === 'all'
-    })
-    .map((m) => ({
-      id: m.id,
-      ts: m.timestamp,
-      from: m.fromAgent,
-      to: m.toAgent,
-      content: m.content,
-      type: m.type,
-    }))
-  const logs = log.map((l) => ({
-    id: `log-${l.timestamp}`,
-    ts: l.timestamp,
-    from: l.agentId,
-    to: '',
-    content: l.message,
-    type: 'system',
-  }))
-  return [...msgs, ...logs].sort((a, b) => a.ts - b.ts)
-})
+// 团队消息(server 已合并系统日志 + agent message)
+const teamMessages = computed(() =>
+  detailMessagesList.value.map((m) => ({
+    id: m.id,
+    ts: m.timestamp,
+    from: m.fromAgent,
+    to: m.toAgent,
+    content: m.content,
+    type: m.type,
+  })),
+)
 
 // ============ 委派新任务 ============
 const newTaskTitle = ref('')
@@ -187,7 +209,7 @@ const newTaskDesc = ref('')
 const newTaskAssignees = ref<string[]>([])
 const newTaskPriority = ref<'low' | 'medium' | 'high'>('medium')
 
-function addTaskToCurrentTeam() {
+async function addTaskToCurrentTeam() {
   if (!detailTeam.value) return
   if (!newTaskTitle.value.trim()) {
     message.warning('请填写任务标题')
@@ -197,31 +219,59 @@ function addTaskToCurrentTeam() {
     message.warning('请至少分配给 1 个智能体')
     return
   }
-  officeStore.createTask({
-    title: newTaskTitle.value.trim(),
-    description: newTaskDesc.value.trim() || newTaskTitle.value.trim(),
-    assignedTo: newTaskAssignees.value.slice(),
-    priority: newTaskPriority.value,
-  })
-  message.success('任务已创建')
-  newTaskTitle.value = ''
-  newTaskDesc.value = ''
-  newTaskAssignees.value = []
-  newTaskPriority.value = 'medium'
+  try {
+    await apiCreateTask(detailTeam.value.id, {
+      title: newTaskTitle.value.trim(),
+      description: newTaskDesc.value.trim() || newTaskTitle.value.trim(),
+      assignedAgents: newTaskAssignees.value.slice(),
+      priority: newTaskPriority.value,
+    })
+    message.success('任务已创建')
+    newTaskTitle.value = ''
+    newTaskDesc.value = ''
+    newTaskAssignees.value = []
+    newTaskPriority.value = 'medium'
+    await refreshDetailTasks()
+  } catch (err: any) {
+    message.error(err?.message || '创建失败')
+  }
 }
 
 // 真实执行某个任务(spawnAgentTask)
 async function executeTask(taskId: string, agentId: string) {
-  const task = officeStore.tasks.find((t) => t.id === taskId)
+  const task = detailTasksList.value.find((t) => t.id === taskId)
   if (!task) return
   try {
-    officeStore.startTask(taskId)
-    await officeStore.spawnAgentTask(agentId, task.description || task.title)
-    officeStore.completeTask(taskId)
+    await apiUpdateTask(taskId, { status: 'in_progress' })
+    await refreshDetailTasks()
+    // 真实调用 OpenClaw agent 执行
+    await wsStore.rpc.callAgent({
+      agentId,
+      message: task.description || task.title,
+    })
+    await apiUpdateTask(taskId, { status: 'completed' })
+    await appendMessage(detailTeamId.value, {
+      fromAgent: agentId,
+      toAgent: 'user',
+      content: `已完成任务:${task.title}`,
+      type: 'reply',
+    })
     message.success(`任务 "${task.title}" 已完成`)
+    await Promise.all([refreshDetailTasks(), refreshDetailMessages()])
   } catch (err: any) {
-    officeStore.failTask(taskId)
+    await apiUpdateTask(taskId, { status: 'failed' }).catch(() => {})
+    await refreshDetailTasks()
     message.error(err?.message || '执行失败')
+  }
+}
+
+async function onUpdateMembers(newAgents: string[]) {
+  if (!detailTeam.value) return
+  try {
+    await apiUpdateScenario(detailTeam.value.id, { agents: newAgents })
+    await loadTeams()
+  } catch (err: any) {
+    message.error(err?.message || '保存失败')
   }
 }
 
@@ -234,15 +284,15 @@ function deleteTeam(scenarioId: string) {
     content: `删除团队 "${scenario.name}" 后,关联的任务和消息记录将一并清空。继续?`,
     positiveText: '删除',
     negativeText: '取消',
-    onPositiveClick: () => {
-      officeStore.scenarios = officeStore.scenarios.filter((s) => s.id !== scenarioId)
-      // 清掉关联 tasks
-      officeStore.tasks = officeStore.tasks.filter((t) => !scenario.tasks.some((st) => st.id === t.id))
-      if (officeStore.currentScenario?.id === scenarioId) {
-        officeStore.currentScenario = null
+    onPositiveClick: async () => {
+      try {
+        await apiDeleteScenario(scenarioId)
+        if (detailTeamId.value === scenarioId) showDetail.value = false
+        message.success('已删除')
+        await loadTeams()
+      } catch (err: any) {
+        message.error(err?.message || '删除失败')
       }
-      if (detailTeamId.value === scenarioId) showDetail.value = false
-      message.success('已删除')
     },
   })
 }
@@ -304,6 +354,7 @@ onMounted(async () => {
   if (allAgents.value.length === 0) {
     await agentStore.fetchAgents().catch(() => {})
   }
+  await loadTeams()
 })
 </script>
 
@@ -385,7 +436,7 @@ onMounted(async () => {
           <div class="team-meta">
             <span>{{ team.agents.length }} 位智能体</span>
             <span class="meta-sep">·</span>
-            <span>{{ team.tasks.length }} 个任务</span>
+            <span>{{ team.status === 'active' ? '活跃' : '草稿' }}</span>
             <span class="meta-sep">·</span>
             <span>{{ formatRelTime(team.createdAt) }}创建</span>
           </div>
@@ -548,14 +599,14 @@ onMounted(async () => {
                   </div>
                   <p class="task-desc">{{ task.description }}</p>
                   <div class="task-meta">
-                    <span>分配给:{{ task.assignedTo.map((id: string) => agentName(id)).join(', ') }}</span>
+                    <span>分配给:{{ task.assignedAgents.map((id: string) => agentName(id)).join(', ') }}</span>
                   </div>
                 </div>
                 <NButton
-                  v-if="task.status === 'pending' && task.assignedTo.length > 0"
+                  v-if="task.status === 'pending' && task.assignedAgents.length > 0"
                   size="small"
                   type="primary"
-                  @click="executeTask(task.id, task.assignedTo[0])"
+                  @click="executeTask(task.id, task.assignedAgents[0])"
                 >
                   <template #icon><NIcon><PlayOutline /></NIcon></template>
                   执行
@@ -632,11 +683,12 @@ onMounted(async () => {
               修改成员后立即生效,新任务会按当前成员分配。
             </p>
             <NSelect
-              v-model:value="detailTeam.agents"
+              :value="detailTeam.agents"
               multiple
               :options="allAgentOptions"
               placeholder="选成员..."
               size="medium"
+              @update:value="onUpdateMembers"
             />
             <div v-if="detailTeam.agents.length > 0" class="members-list">
               <div
@@ -663,7 +715,7 @@ onMounted(async () => {
     <p class="page-footnote">
       <NIcon size="12"><ConstructOutline /></NIcon>
       团队由 OpenClaw <code>callAgent</code> 驱动,任务执行时智能体真实运行。
-      团队配置目前仅本地保存,刷新后保留在当前会话。
+      团队/任务/消息持久化在本地数据库,刷新或重启不丢。
     </p>
   </div>
 </template>
