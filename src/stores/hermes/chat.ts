@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from 'vue'
 import { defineStore } from 'pinia'
 import { useHermesConnectionStore } from './connection'
+import { useHermesConfigStore } from './config'
 import type { HermesMessage, ModelSelection } from '@/api/hermes/types'
 
 export interface ToolCallProgress {
@@ -67,8 +68,24 @@ export const useHermesChatStore = defineStore('hermes-chat', () => {
       currentSessionId.value = options.sessionId
     }
 
-    // 确定使用的模型
-    const modelName = options?.modelSelection?.modelId || options?.model || 'hermes-agent'
+    // 确定使用的模型:caller 显式传入 > hermes config.model > 兜底 'hermes-agent'
+    // 之前直接用 'hermes-agent' 兜底,但 hermes 后端不识别这个 id,LLM 不会被调用,
+    // SSE 会立即返 finish_reason=stop 且 content 为空(prompt_tokens=0)。
+    let configuredModel: string | undefined
+    try {
+      const configStore = useHermesConfigStore()
+      if (!configStore.config) {
+        await configStore.fetchConfig().catch(() => {})
+      }
+      configuredModel = (configStore.config as any)?.model
+    } catch {
+      // 忽略,fallback 到旧值
+    }
+    const modelName =
+      options?.modelSelection?.modelId ||
+      options?.model ||
+      configuredModel ||
+      'hermes-agent'
     const providerName = options?.modelSelection?.providerName
     const baseUrl = options?.modelSelection?.baseUrl
 
