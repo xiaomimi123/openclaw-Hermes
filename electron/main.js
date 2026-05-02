@@ -383,9 +383,14 @@ async function configureOpenClaw(token, baseUrl, modelId, providerId = 'lingjing
   return { status: 'ok', stdout: r.stdout?.slice(-200) }
 }
 
-async function configureHermes(token, baseUrl) {
-  // 把 OPENROUTER_API_KEY 和 base url 写到 ~/.hermes/.env
-  // (Hermes 默认 LLM Provider 是 OpenRouter,我们用 aitoken.homes 接管)
+async function configureHermes(token, baseUrl, modelId) {
+  // 两个事必须同时做才能让 Hermes 真正用灵境:
+  // 1. ~/.hermes/.env 写 OPENROUTER_API_KEY = 灵境 sk-token (Hermes 读这个 env)
+  //    注:OPENROUTER_BASE_URL 这个 env Hermes 不读!hermes_constants.py 里
+  //    OPENROUTER_BASE_URL 是硬编码常量 'https://openrouter.ai/api/v1'。
+  // 2. ~/.hermes/config.yaml 改 model.base_url = 灵境 v1 + model.default = 灵境
+  //    model id(走 Dashboard PUT /api/config 而不是直接改文件,Hermes 自己
+  //    保证写入 + reload 一致性)。
   const envPath = path.join(os.homedir(), '.hermes', '.env')
   let content = ''
   try {
@@ -400,15 +405,53 @@ async function configureHermes(token, baseUrl) {
     return text + `\n${key}=${value}`
   }
 
+  // .env:写 OPENROUTER_API_KEY(BASE_URL 留着但不起作用,无害)
   let updated = content
   updated = setLine(updated, 'OPENROUTER_API_KEY', token)
   updated = setLine(updated, 'OPENROUTER_BASE_URL', baseUrl)
-
   if (updated !== content) {
     await fs.writeFile(envPath, updated, 'utf-8')
   }
 
-  // 重启 Hermes Gateway
+  // config.yaml:通过 Dashboard PUT API 改 model.base_url
+  // 选 model id 时优先 caller 传入,否则用 gpt-5.4(灵境的 Anthropic 模型在
+  // 订阅政策下会被 400 拒,GPT/Gemini/DeepSeek 没限制)。
+  const safeModel = modelId || 'gpt-5.4'
+  try {
+    const dashConfig = {
+      model: { default: safeModel, provider: 'auto', base_url: baseUrl },
+    }
+    // 通过 hermes 桌面后端的 /api/hermes/config 代理,带上 cookie
+    const fetchFn = (await import('node:http')).request
+    await new Promise((resolve, reject) => {
+      const data = JSON.stringify({ config: dashConfig })
+      const req = fetchFn(
+        {
+          host: '127.0.0.1',
+          port: 3000,
+          path: '/api/hermes/config',
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+        },
+        (resp) => {
+          let buf = ''
+          resp.on('data', (c) => (buf += c.toString()))
+          resp.on('end', () => {
+            if (resp.statusCode && resp.statusCode >= 200 && resp.statusCode < 300) resolve(buf)
+            else reject(new Error(`PUT /api/hermes/config -> ${resp.statusCode}: ${buf}`))
+          })
+        },
+      )
+      req.on('error', reject)
+      req.write(data)
+      req.end()
+    })
+    console.log('[lingjing-cfg] hermes config.yaml updated: model=', safeModel, 'base_url=', baseUrl)
+  } catch (err) {
+    console.warn('[lingjing-cfg] PUT hermes config failed (non-fatal):', err?.message || err)
+  }
+
+  // 重启 Hermes Gateway 让 config.yaml 生效
   const hermesBin = path.join(os.homedir(), '.local', 'bin', 'hermes')
   try {
     await fs.access(hermesBin)
@@ -499,7 +542,7 @@ ipcMain.handle('lingjing:auto-configure-via-main', async (_event, params) => {
   const baseUrl = 'https://api.aitoken.homes/v1'
   const modelId = params?.modelId || 'gpt-5.4'
   const oc = await configureOpenClaw(fetched.token, baseUrl, modelId).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
-  const hm = await configureHermes(fetched.token, baseUrl).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
+  const hm = await configureHermes(fetched.token, baseUrl, modelId).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
   return {
     tokenSource: fetched.source,
     tokenSuffix: fetched.token.slice(-6),
@@ -621,7 +664,7 @@ ipcMain.handle('lingjing:configure-local-providers', async (_event, params) => {
     .catch((e) => ({ status: 'error', message: String(e?.message || e) }))
   const hmPromise = skipHermes
     ? Promise.resolve({ status: 'skipped', message: 'skipHermes=true' })
-    : configureHermes(token, baseUrl).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
+    : configureHermes(token, baseUrl, modelId).catch((e) => ({ status: 'error', message: String(e?.message || e) }))
   const [oc, hm] = await Promise.all([ocPromise, hmPromise])
   return {
     openclaw: oc.status,
