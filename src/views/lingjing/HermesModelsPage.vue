@@ -106,9 +106,27 @@ async function handleReconnectLingjing() {
 async function handleSwitchToLingjingModel(model: PlaygroundModelInfo) {
   switching.value = true
   try {
-    await modelStore.setCurrentModel(model.id, {
-      provider: 'openrouter',
+    // 主动 PUT 完整 model 块,确保 base_url 也是灵境的(避免之前被改成 openrouter.ai
+    // 这种情况;hermes 实际读的是 config.yaml 里 model.base_url,不是 env)。
+    const lingjingBase =
+      (import.meta.env.VITE_LINGJING_OPENAI_BASE as string) || 'https://api.aitoken.homes/v1'
+    const resp = await fetch('/api/hermes/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        config: {
+          model: {
+            default: model.id,
+            provider: 'auto',
+            base_url: lingjingBase,
+          },
+        },
+      }),
     })
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '')
+      throw new Error(`PUT /api/hermes/config -> ${resp.status}: ${text}`)
+    }
     await configStore.fetchConfig()
     message.success(`已切换到 ${model.name || model.id}`)
   } catch (err: any) {
