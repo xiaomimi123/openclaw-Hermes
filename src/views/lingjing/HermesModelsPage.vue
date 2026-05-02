@@ -7,16 +7,23 @@ import {
 import {
   SparklesOutline, AddOutline, CheckmarkCircle, OpenOutline,
   KeyOutline, RefreshOutline, TrashOutline, PencilOutline,
+  CloudDoneOutline, FlashOutline,
 } from '@vicons/ionicons5'
 import { useHermesModelStore } from '@/stores/hermes/model'
 import { useHermesConfigStore } from '@/stores/hermes/config'
 import { useHermesConnectionStore } from '@/stores/hermes/connection'
+import { useAuthStore } from '@/stores/auth'
 import { HERMES_PROVIDERS } from '@/api/hermes/types'
+import {
+  listPlaygroundModels,
+  type PlaygroundModelInfo,
+} from '@/api/lingjing/chat'
 
 const message = useMessage()
 const modelStore = useHermesModelStore()
 const configStore = useHermesConfigStore()
 const connStore = useHermesConnectionStore()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const switching = ref(false)
@@ -32,6 +39,85 @@ const editing = ref<{
 } | null>(null)
 const saving = ref(false)
 
+// ==== 灵境 AI 接入状态 ====
+const lingjingModels = ref<PlaygroundModelInfo[]>([])
+const lingjingModelsLoading = ref(false)
+const reconnecting = ref(false)
+
+// hermes /api/env 不暴露 OPENROUTER_BASE_URL(hermes envSchema 没列),
+// 所以无法直接读 .env 来判断 base_url 是不是灵境。改用组合判断:
+//   1) 灵境用户已登录(authStore.user 不空)
+//   2) hermes OPENROUTER_API_KEY 已设置
+//   3) sessionStorage 里 auth.ts 配完后留的成功标记
+// 三者满足即认为"灵境已接入 hermes"。
+const lingjingTokenSet = computed(() => {
+  const v = modelStore.rawEnvVars.OPENROUTER_API_KEY as { is_set?: boolean } | undefined
+  return !!v?.is_set
+})
+
+const lingjingConnected = computed(() => {
+  if (!authStore.user) return false
+  if (!lingjingTokenSet.value) return false
+  // auth.ts 配置成功会写这个标记
+  try {
+    return sessionStorage.getItem('lingjing_providers_configured') === 'ok'
+  } catch {
+    return false
+  }
+})
+
+const lingjingUserName = computed(() => authStore.user?.username || authStore.user?.display_name || '')
+
+async function loadLingjingModels() {
+  if (!authStore.user) return
+  lingjingModelsLoading.value = true
+  try {
+    lingjingModels.value = await listPlaygroundModels()
+  } catch (err) {
+    console.warn('[hermes-models] listPlaygroundModels failed:', err)
+    lingjingModels.value = []
+  } finally {
+    lingjingModelsLoading.value = false
+  }
+}
+
+async function handleReconnectLingjing() {
+  reconnecting.value = true
+  try {
+    if (!(window as any).lingjing?.configureLocalProviders) {
+      message.error('Electron bridge 不可用,请重启应用')
+      return
+    }
+    const result = await authStore.reconfigureProviders()
+    if (result?.hermes === 'ok' || result?.hermes === 'skipped') {
+      message.success('已重新接入灵境 AI')
+      await modelStore.fetchEnvVars()
+      await configStore.fetchConfig().catch(() => {})
+    } else {
+      message.error('接入失败,请检查灵境登录状态')
+    }
+  } catch (err: any) {
+    message.error(err?.message || '接入失败')
+  } finally {
+    reconnecting.value = false
+  }
+}
+
+async function handleSwitchToLingjingModel(model: PlaygroundModelInfo) {
+  switching.value = true
+  try {
+    await modelStore.setCurrentModel(model.id, {
+      provider: 'openrouter',
+    })
+    await configStore.fetchConfig()
+    message.success(`已切换到 ${model.name || model.id}`)
+  } catch (err: any) {
+    message.error(err?.message || '切换失败')
+  } finally {
+    switching.value = false
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -42,6 +128,7 @@ onMounted(async () => {
       configStore.fetchConfig().catch(() => {}),
       modelStore.fetchModels().catch(() => {}),
       modelStore.fetchEnvVars().catch(() => {}),
+      loadLingjingModels(),
     ])
     modelStore.syncCurrentModelSelectionFromConfig()
   } finally {
@@ -190,6 +277,7 @@ async function refreshAll() {
       configStore.fetchConfig().catch(() => {}),
       modelStore.fetchModels().catch(() => {}),
       modelStore.fetchEnvVars().catch(() => {}),
+      loadLingjingModels(),
     ])
     message.success('已刷新')
   } finally {
@@ -212,6 +300,102 @@ async function refreshAll() {
     </header>
 
     <NSpin :show="loading">
+      <!-- 灵境 AI 接入状态 -->
+      <section
+        v-if="authStore.user"
+        class="lingjing-card"
+        :class="{ 'is-connected': lingjingConnected && lingjingTokenSet }"
+      >
+        <div class="lingjing-head">
+          <div class="lingjing-icon">
+            <NIcon size="22"><CloudDoneOutline /></NIcon>
+          </div>
+          <div class="lingjing-meta">
+            <div class="lingjing-title">
+              灵境 AI
+              <NTag
+                v-if="lingjingConnected && lingjingTokenSet"
+                size="small"
+                :bordered="false"
+                type="success"
+              >
+                已接入
+              </NTag>
+              <NTag
+                v-else
+                size="small"
+                :bordered="false"
+                type="warning"
+              >
+                未接入
+              </NTag>
+            </div>
+            <div class="lingjing-sub">
+              <template v-if="lingjingConnected && lingjingTokenSet">
+                Hermes 已通过你的灵境账号({{ lingjingUserName || '当前用户' }})接入云端模型 — OpenClaw / Hermes 共用同一份 API Key。
+              </template>
+              <template v-else>
+                登录灵境后会自动把云端 sk- token 写入 Hermes(OpenRouter slot)。当前未检测到接入,可手动重新接入。
+              </template>
+            </div>
+          </div>
+          <NButton
+            v-if="!lingjingConnected || !lingjingTokenSet"
+            size="small"
+            type="primary"
+            :loading="reconnecting"
+            @click="handleReconnectLingjing"
+          >
+            <template #icon><NIcon><FlashOutline /></NIcon></template>
+            重新接入
+          </NButton>
+        </div>
+
+        <div v-if="lingjingConnected && lingjingTokenSet && lingjingModels.length > 0" class="lingjing-models">
+          <div class="lingjing-models-head">
+            <span class="lingjing-models-label">灵境云端模型 · {{ lingjingModels.length }} 个可用</span>
+            <span class="lingjing-models-hint">点击卡片切到该模型</span>
+          </div>
+          <div class="lingjing-grid">
+            <button
+              v-for="m in lingjingModels"
+              :key="m.id"
+              type="button"
+              class="lingjing-model-card"
+              :class="{
+                'is-current': currentModelId === m.id,
+                'is-featured': m.featured,
+              }"
+              :disabled="switching"
+              @click="handleSwitchToLingjingModel(m)"
+            >
+              <div class="model-name-wrap">
+                <span class="model-name">{{ m.name || m.id }}</span>
+                <NTag v-if="m.featured" size="small" :bordered="false" type="info">推荐</NTag>
+              </div>
+              <div v-if="m.provider" class="model-provider">{{ m.provider }}</div>
+              <div v-if="m.description" class="model-desc">{{ m.description }}</div>
+              <div class="model-meta">
+                <span v-if="m.context_window">上下文 {{ m.context_window }}</span>
+                <span v-else-if="m.input_price">输入 ${{ m.input_price }}</span>
+              </div>
+              <span v-if="currentModelId === m.id" class="model-current-badge">
+                <NIcon size="12"><CheckmarkCircle /></NIcon>
+                当前
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="lingjingConnected && lingjingTokenSet && lingjingModelsLoading" class="lingjing-loading">
+          加载灵境模型中…
+        </div>
+
+        <div v-else-if="lingjingConnected && lingjingTokenSet" class="lingjing-loading">
+          灵境云端没有返回模型列表(或当前账号余额为 0)
+        </div>
+      </section>
+
       <!-- 当前模型 -->
       <section class="card current-card">
         <div class="current-head">
@@ -403,6 +587,196 @@ async function refreshAll() {
 .current-card {
   padding: 18px 20px;
   margin-bottom: 28px;
+}
+
+/* === 灵境 AI 接入状态 === */
+.lingjing-card {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.04), rgba(52, 199, 89, 0.04));
+  border: 1px solid var(--n-border-color);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.lingjing-card.is-connected {
+  border-color: rgba(52, 199, 89, 0.4);
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.06), rgba(0, 122, 255, 0.04));
+}
+
+:root[data-theme='dark'] .lingjing-card {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.08), rgba(48, 209, 88, 0.06));
+}
+
+:root[data-theme='dark'] .lingjing-card.is-connected {
+  border-color: rgba(48, 209, 88, 0.45);
+}
+
+.lingjing-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lingjing-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(52, 199, 89, 0.15);
+  color: #34C759;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+:root[data-theme='dark'] .lingjing-icon {
+  background: rgba(48, 209, 88, 0.18);
+  color: #30D158;
+}
+
+.lingjing-meta { flex: 1; min-width: 0; }
+
+.lingjing-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--n-text-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.lingjing-sub {
+  font-size: 12.5px;
+  color: var(--n-text-color-3);
+  line-height: 1.5;
+  max-width: 600px;
+}
+
+.lingjing-models {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--n-border-color);
+}
+
+.lingjing-models-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.lingjing-models-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color-2);
+}
+
+.lingjing-models-hint {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.lingjing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.lingjing-model-card {
+  text-align: left;
+  font: inherit;
+  position: relative;
+  background: var(--n-card-color);
+  border: 1px solid var(--n-border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lingjing-model-card:hover:not(:disabled) {
+  border-color: rgba(0, 122, 255, 0.45);
+  background: rgba(0, 122, 255, 0.03);
+}
+
+.lingjing-model-card:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.lingjing-model-card.is-current {
+  border-color: #34C759;
+  background: rgba(52, 199, 89, 0.06);
+}
+
+:root[data-theme='dark'] .lingjing-model-card.is-current {
+  border-color: #30D158;
+  background: rgba(48, 209, 88, 0.1);
+}
+
+.lingjing-model-card.is-featured {
+  border-color: rgba(0, 122, 255, 0.35);
+}
+
+.model-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.model-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+.model-provider {
+  font-size: 11.5px;
+  color: var(--n-text-color-3);
+}
+
+.model-desc {
+  font-size: 11.5px;
+  color: var(--n-text-color-3);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.model-meta {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.model-current-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10.5px;
+  color: #34C759;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+:root[data-theme='dark'] .model-current-badge { color: #30D158; }
+
+.lingjing-loading {
+  margin-top: 14px;
+  padding: 12px 0;
+  font-size: 12.5px;
+  color: var(--n-text-color-3);
+  text-align: center;
 }
 
 .current-head {
