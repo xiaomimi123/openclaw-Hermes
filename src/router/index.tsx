@@ -5,6 +5,8 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ChatPage } from '@/pages/chat/ChatPage'
+import { TaskCenter } from '@/pages/tasks/TaskCenter'
+import { TaskExecutionPage } from '@/pages/tasks/TaskExecutionPage'
 
 export const router = createBrowserRouter([
   {
@@ -13,26 +15,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/chat" replace /> },
       { path: 'chat', element: <ChatPage /> },
-      {
-        path: 'tasks',
-        element: (
-          <PlaceholderPage
-            title="任务中心"
-            description="10 个预置任务模板 + 执行历史 + 操作审批"
-            phase="Phase 5 接入"
-          />
-        ),
-      },
-      {
-        path: 'tasks/:id',
-        element: (
-          <PlaceholderPage
-            title="任务执行"
-            description="单个任务的逐步执行 + 流式状态"
-            phase="Phase 5 接入"
-          />
-        ),
-      },
+      { path: 'tasks', element: <TaskCenter /> },
+      { path: 'tasks/:id', element: <TaskExecutionPage /> },
       {
         path: 'agents',
         element: (
