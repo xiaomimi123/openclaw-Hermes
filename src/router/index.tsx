@@ -11,6 +11,7 @@ import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { AccountPage } from '@/pages/account/AccountPage'
 import { UsagePage } from '@/pages/account/UsagePage'
 import { OnboardingPage } from '@/pages/onboarding/OnboardingPage'
+import { AgentList } from '@/pages/agents/AgentList'
 
 export const router = createBrowserRouter([
   {
@@ -25,16 +26,7 @@ export const router = createBrowserRouter([
       { path: 'chat', element: <ChatPage /> },
       { path: 'tasks', element: <TaskCenter /> },
       { path: 'tasks/:id', element: <TaskExecutionPage /> },
-      {
-        path: 'agents',
-        element: (
-          <PlaceholderPage
-            title="我的 Agent"
-            description="5 个预置 Agent（文件管家/文档/数据/写作/代码）+ 切换"
-            phase="Phase 7 接入"
-          />
-        ),
-      },
+      { path: 'agents', element: <AgentList /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/usage', element: <UsagePage /> },
       { path: 'settings', element: <SettingsPage /> },

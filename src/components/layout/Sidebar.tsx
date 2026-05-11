@@ -13,6 +13,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLingjingAuthStore } from '@/stores/lingjing-auth-store'
+import { AgentBadge } from '@/components/agents/AgentBadge'
+import { useEffect } from 'react'
+import { useAgentStore } from '@/stores/agent-store'
 
 interface NavItem {
   to: string
@@ -84,6 +87,11 @@ function UserCard() {
 }
 
 export function Sidebar() {
+  const fetchAgents = useAgentStore((s) => s.fetch)
+  useEffect(() => {
+    fetchAgents()
+  }, [fetchAgents])
+
   return (
     <aside className="flex h-full w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-12 items-center gap-2 border-b px-4">
@@ -103,6 +111,7 @@ export function Sidebar() {
       </nav>
 
       <div className="flex flex-col gap-2 border-t p-2">
+        <AgentBadge />
         <UserCard />
         <div className="flex flex-col gap-1">
           {BOTTOM_NAV.map((item) => (

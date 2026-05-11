@@ -75,7 +75,56 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_backup_records_created_at ON backup_records(created_at);
   CREATE INDEX IF NOT EXISTS idx_messages_scenario_id ON messages(scenario_id);
   CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+
+  -- Phase 7: 预置 Agent 系统
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    emoji TEXT,
+    description TEXT,
+    soul_path TEXT NOT NULL,
+    category TEXT DEFAULT 'system',
+    enabled INTEGER DEFAULT 1,
+    usage_count INTEGER DEFAULT 0,
+    last_used_at INTEGER,
+    created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+    updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS agent_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL,
+    session_key TEXT NOT NULL,
+    activated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_sessions_agent ON agent_sessions(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_agents_enabled ON agents(enabled);
 `)
+
+// 种入 5 个预置 Agent（仅首次）
+const SEED_AGENTS = [
+  { id: 'file-butler', name: '文件管家', emoji: '📁', description: '整理、重命名、归档、清理文件，dry-run 优先，安全沙箱' },
+  { id: 'doc-expert', name: '文档处理专家', emoji: '📄', description: 'PDF / Word / Excel / Markdown 互转 + 抽取 + OCR + 校对' },
+  { id: 'data-analyst', name: '数据分析助手', emoji: '📊', description: 'CSV / Excel / SQL 清洗、统计、可视化、建模' },
+  { id: 'writer', name: '写作助手', emoji: '✍️', description: '邮件、报告、文案、技术文档；多风格多版本' },
+  { id: 'coder', name: '代码助手', emoji: '💻', description: '读写改 Bug、Review、测试、重构；TS / Py / Go / Rust' },
+]
+
+{
+  const existing = db.prepare('SELECT COUNT(*) as c FROM agents WHERE category = ?').get('system')
+  if (!existing || existing.c < SEED_AGENTS.length) {
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO agents (id, name, emoji, description, soul_path, category, enabled)
+      VALUES (?, ?, ?, ?, ?, 'system', 1)
+    `)
+    for (const a of SEED_AGENTS) {
+      insert.run(a.id, a.name, a.emoji, a.description, `resources/agents/${a.id}.md`)
+    }
+    console.log(`[Database] Seeded ${SEED_AGENTS.length} preset agents`)
+  }
+}
 
 // 增量迁移:旧库可能没有这些列,以幂等方式 ALTER
 const migrations = [
