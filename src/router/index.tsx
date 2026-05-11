@@ -4,6 +4,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ChatPage } from '@/pages/chat/ChatPage'
 
 export const router = createBrowserRouter([
   {
@@ -11,16 +12,7 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <Navigate to="/chat" replace /> },
-      {
-        path: 'chat',
-        element: (
-          <PlaceholderPage
-            title="对话"
-            description="OpenClaw 流式对话 + 模型切换 + 会话管理"
-            phase="Phase 4 接入"
-          />
-        ),
-      },
+      { path: 'chat', element: <ChatPage /> },
       {
         path: 'tasks',
         element: (
