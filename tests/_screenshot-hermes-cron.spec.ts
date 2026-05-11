@@ -1,6 +1,8 @@
 import { test } from './helpers/fixtures'
 
-test('screenshot: /hermes/cron 现状', async ({ page }) => {
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
+'screenshot: /hermes/cron 现状', async ({ page }) => {
   await page.addInitScript(() => {
     try { localStorage.setItem('hermes_gateway', 'hermes') } catch {}
   })

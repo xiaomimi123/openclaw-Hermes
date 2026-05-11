@@ -3,7 +3,9 @@ import { test, expect } from './helpers/fixtures'
 /**
  * 虚拟公司新版(Phase 5):"新建公司"按钮在原页弹 wizard modal,不再跳 /office
  */
-test('虚拟公司 - 新建按钮弹出 wizard', async ({ page }) => {
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
+'虚拟公司 - 新建按钮弹出 wizard', async ({ page }) => {
   await page.goto('/myworld')
   await page.waitForLoadState('domcontentloaded')
   await page.waitForTimeout(1500)

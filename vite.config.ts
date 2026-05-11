@@ -44,10 +44,34 @@ export default defineConfig(({ mode }) => {
     build: {
       target: 'esnext',
       outDir: 'dist',
+      // 拆 chunk：避免单 chunk > 500KB
+      // 主要大头：i18n 翻译字典（240KB ×2）、react-syntax-highlighter（含所有语言）、
+      // radix-ui 全家、react-markdown + remark-gfm、framer-motion、zustand 等
+      chunkSizeWarningLimit: 600,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              // 顺序很关键：精细的优先匹配（refractor 必须先于 react，不然被 'react' 截胡）
+              if (id.includes('react-syntax-highlighter') || id.includes('refractor') || id.includes('lowlight') || id.includes('prismjs')) {
+                return 'syntax-highlighter'
+              }
+              if (id.includes('react-markdown') || id.includes('/remark') || id.includes('/rehype') || id.includes('/unified') || id.includes('/mdast') || id.includes('/hast') || id.includes('/micromark')) {
+                return 'markdown'
+              }
+              if (id.includes('@radix-ui')) return 'radix'
+              if (id.includes('framer-motion')) return 'framer-motion'
+              if (id.includes('katex') || id.includes('markdown-it') || id.includes('highlight.js')) return 'tex-md'
+              if (id.includes('axios')) return 'axios'
+              if (id.includes('lucide-react')) return 'icons'
+              if (id.includes('i18next')) return 'i18n'
+              if (id.includes('zustand')) return 'zustand'
+              if (id.includes('react-router')) return 'react-router'
+              // react / react-dom 单独 vendor，注意要排除上面所有以 react- 开头的库
+              if (id.match(/node_modules\/(react|react-dom|scheduler)[\\/]/)) return 'react-vendor'
+              return 'vendor'
+            }
+            if (id.includes('/src/i18n/messages/')) return 'i18n-messages'
           },
         },
       },

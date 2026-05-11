@@ -102,6 +102,11 @@ export const ipc = {
     return window.lingjing.skillsInstall(params)
   },
 
+  skillsUninstall(params: { slug: string; force?: boolean }) {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, message: 'not in Electron' }))
+    return window.lingjing.skillsUninstall(params)
+  },
+
   skillsInfo(params: { slug: string }) {
     if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, text: '', code: -1 }))
     return window.lingjing.skillsInfo(params)

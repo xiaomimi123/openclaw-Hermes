@@ -3,7 +3,9 @@ import { test, expect } from './helpers/fixtures'
 /**
  * 验证 Phase 5 持久化:用 UI 创建一家公司,然后刷新页面再访问,公司还在。
  */
-test('myworld - 创建公司后刷新仍存在(SQLite 持久化)', async ({ page }) => {
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
+'myworld - 创建公司后刷新仍存在(SQLite 持久化)', async ({ page }) => {
   await page.goto('/myworld')
   await page.waitForLoadState('domcontentloaded')
   await page.waitForTimeout(2500)

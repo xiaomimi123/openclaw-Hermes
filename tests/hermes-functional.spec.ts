@@ -13,6 +13,8 @@ import { attachLogCapture, summarize } from './helpers/log-capture'
 
 const TIMEOUT = 8_000
 
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
 test.describe('Hermes 子页功能验证', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {

@@ -39,6 +39,41 @@ import {
   type CronStatus,
 } from '@/services/cron-api'
 import { useChatStore } from '@/stores/chat-store'
+import { CRON_PRESETS, type CronPreset } from '@/data/cron-presets'
+import { cn } from '@/lib/utils'
+
+// schedule 可视化 helper：把 cron 表达式分解为人类可读
+type Mode = 'minutely' | 'hourly' | 'daily' | 'weekly' | 'custom'
+
+interface ScheduleDraft {
+  mode: Mode
+  hour: number // 0-23
+  minute: number // 0-59
+  weekday: number // 0(日) - 6(六)
+  interval: number // 分钟数（minutely 用）
+  custom: string // 原始表达式
+}
+
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+function draftToCron(d: ScheduleDraft): string {
+  if (d.mode === 'custom') return d.custom
+  if (d.mode === 'minutely') return `*/${Math.max(1, d.interval)} * * * *`
+  if (d.mode === 'hourly') return `${d.minute} * * * *`
+  if (d.mode === 'daily') return `${d.minute} ${d.hour} * * *`
+  if (d.mode === 'weekly') return `${d.minute} ${d.hour} * * ${d.weekday}`
+  return d.custom
+}
+
+function describeSchedule(d: ScheduleDraft): string {
+  const hh = String(d.hour).padStart(2, '0')
+  const mm = String(d.minute).padStart(2, '0')
+  if (d.mode === 'minutely') return `每 ${d.interval} 分钟一次`
+  if (d.mode === 'hourly') return `每小时第 ${d.minute} 分钟`
+  if (d.mode === 'daily') return `每天 ${hh}:${mm}`
+  if (d.mode === 'weekly') return `每${WEEKDAYS[d.weekday]} ${hh}:${mm}`
+  return '自定义 cron 表达式'
+}
 
 function fmtTime(ms?: number | null) {
   if (!ms) return '—'
@@ -229,7 +264,14 @@ function AddJobDialog({
 }) {
   const currentSession = useChatStore((s) => s.sessionKey)
   const [name, setName] = useState('每日整理下载')
-  const [schedule, setSchedule] = useState('0 9 * * *')
+  const [draft, setDraft] = useState<ScheduleDraft>({
+    mode: 'daily',
+    hour: 9,
+    minute: 0,
+    weekday: 1,
+    interval: 30,
+    custom: '0 9 * * *',
+  })
   const [sessionTarget, setSessionTarget] = useState('')
   const [message, setMessage] = useState('整理 ~/Downloads 下今天新增的文件，按类型分子目录')
   const [submitting, setSubmitting] = useState(false)
@@ -240,6 +282,30 @@ function AddJobDialog({
       setSessionTarget(currentSession || 'agent:main:main')
     }
   }, [open, currentSession, sessionTarget])
+
+  const applyPreset = useCallback((p: CronPreset) => {
+    setName(p.name)
+    setMessage(p.message)
+    // 把 cron 表达式 parse 回 draft（简单识别）
+    const parts = p.schedule.trim().split(/\s+/)
+    if (parts.length === 5) {
+      const [min, hr, , , dow] = parts
+      const minNum = parseInt(min.replace('*/', ''), 10)
+      if (min.startsWith('*/')) {
+        setDraft({ mode: 'minutely', hour: 0, minute: 0, weekday: 1, interval: minNum, custom: p.schedule })
+      } else if (hr === '*' && dow === '*') {
+        setDraft({ mode: 'hourly', hour: 0, minute: minNum, weekday: 1, interval: 30, custom: p.schedule })
+      } else if (dow !== '*' && !isNaN(parseInt(dow, 10))) {
+        setDraft({ mode: 'weekly', hour: parseInt(hr, 10), minute: minNum, weekday: parseInt(dow, 10), interval: 30, custom: p.schedule })
+      } else {
+        setDraft({ mode: 'daily', hour: parseInt(hr, 10), minute: minNum, weekday: 1, interval: 30, custom: p.schedule })
+      }
+    } else {
+      setDraft({ mode: 'custom', hour: 9, minute: 0, weekday: 1, interval: 30, custom: p.schedule })
+    }
+  }, [])
+
+  const schedule = draftToCron(draft)
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -265,27 +331,149 @@ function AddJobDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md" data-testid="cron-dialog">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-auto" data-testid="cron-dialog">
         <DialogHeader>
           <DialogTitle>新建定时任务</DialogTitle>
-          <DialogDescription>
-            schedule 支持 cron 表达式（如 <code className="rounded bg-muted px-1 font-mono text-[10px]">0 9 * * *</code>）
-            或 OpenClaw 简写（<code className="rounded bg-muted px-1 font-mono text-[10px]">every 30m</code>）
-          </DialogDescription>
+          <DialogDescription>选预设一键填表，或自定义调度规则</DialogDescription>
         </DialogHeader>
+
+        {/* 预设条 */}
+        <div>
+          <div className="mb-2 text-[11px] font-medium text-muted-foreground">预设模板</div>
+          <div className="flex flex-wrap gap-1.5">
+            {CRON_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyPreset(p)}
+                className="flex items-center gap-1 rounded-full border bg-card px-2.5 py-1 text-[11px] transition-colors hover:bg-accent"
+                data-testid="cron-preset"
+                data-preset-id={p.id}
+                title={p.description}
+              >
+                <span>{p.emoji}</span>
+                <span>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <Field label="任务名称" required>
             <Input value={name} onChange={(e) => setName(e.target.value)} required />
           </Field>
-          <Field label="调度（schedule）" required>
-            <Input
-              value={schedule}
-              onChange={(e) => setSchedule(e.target.value)}
-              placeholder="0 9 * * * 或 every 30m"
-              required
-              className="font-mono text-xs"
-            />
-          </Field>
+
+          {/* schedule 可视化 */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              调度规则 <span className="text-destructive">*</span>
+            </label>
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex flex-wrap gap-1.5">
+                {(['minutely', 'hourly', 'daily', 'weekly', 'custom'] as Mode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, mode: m })}
+                    data-testid={`cron-mode-${m}`}
+                    data-active={draft.mode === m || undefined}
+                    className={cn(
+                      'rounded border px-2 py-1 text-[11px]',
+                      draft.mode === m
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'bg-background hover:bg-accent',
+                    )}
+                  >
+                    {m === 'minutely' && '按分钟'}
+                    {m === 'hourly' && '每小时'}
+                    {m === 'daily' && '每天'}
+                    {m === 'weekly' && '每周'}
+                    {m === 'custom' && '自定义'}
+                  </button>
+                ))}
+              </div>
+
+              {draft.mode === 'minutely' && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span>每</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={59}
+                    value={draft.interval}
+                    onChange={(e) => setDraft({ ...draft, interval: Math.max(1, Number(e.target.value)) })}
+                    className="w-16"
+                  />
+                  <span>分钟</span>
+                </div>
+              )}
+
+              {draft.mode === 'hourly' && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span>每小时的第</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={draft.minute}
+                    onChange={(e) => setDraft({ ...draft, minute: Math.max(0, Math.min(59, Number(e.target.value))) })}
+                    className="w-16"
+                  />
+                  <span>分钟</span>
+                </div>
+              )}
+
+              {(draft.mode === 'daily' || draft.mode === 'weekly') && (
+                <div className="flex items-center gap-2 text-xs">
+                  {draft.mode === 'weekly' && (
+                    <select
+                      value={draft.weekday}
+                      onChange={(e) => setDraft({ ...draft, weekday: Number(e.target.value) })}
+                      className="rounded border bg-transparent px-2 py-1.5 text-xs"
+                    >
+                      {WEEKDAYS.map((w, i) => (
+                        <option key={i} value={i}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <Input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={draft.hour}
+                    onChange={(e) => setDraft({ ...draft, hour: Math.max(0, Math.min(23, Number(e.target.value))) })}
+                    className="w-16"
+                  />
+                  <span>:</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={draft.minute}
+                    onChange={(e) => setDraft({ ...draft, minute: Math.max(0, Math.min(59, Number(e.target.value))) })}
+                    className="w-16"
+                  />
+                </div>
+              )}
+
+              {draft.mode === 'custom' && (
+                <Input
+                  value={draft.custom}
+                  onChange={(e) => setDraft({ ...draft, custom: e.target.value })}
+                  placeholder="0 9 * * * 或 every 30m"
+                  className="font-mono text-xs"
+                />
+              )}
+
+              <div className="flex items-center justify-between border-t pt-2 text-[11px] text-muted-foreground">
+                <span>{describeSchedule(draft)}</span>
+                <code className="rounded bg-background px-1.5 py-0.5 font-mono">{schedule}</code>
+              </div>
+            </div>
+          </div>
+
           <Field label="目标会话（sessionKey）" required>
             <Input
               value={sessionTarget}

@@ -17,6 +17,7 @@ import {
   Download,
   ExternalLink,
   Loader2,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +27,7 @@ import {
   getSkillsStatus,
   searchSkillsMarket,
   installSkill,
+  uninstallSkill,
   type Skill,
   type MarketSkillItem,
 } from '@/services/skills-api'
@@ -43,6 +45,7 @@ export function SkillsPage() {
   const [marketResults, setMarketResults] = useState<MarketSkillItem[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
   const [installing, setInstalling] = useState<string | null>(null)
+  const [uninstalling, setUninstalling] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
@@ -101,6 +104,31 @@ export function SkillsPage() {
     [reload],
   )
 
+  const handleUninstall = useCallback(
+    async (skill: Skill) => {
+      const slug = skill.skillKey ?? skill.name
+      if (!slug) return
+      if (skill.bundled) {
+        setToast('内置 skill 不能卸载')
+        setTimeout(() => setToast(null), 3000)
+        return
+      }
+      if (!window.confirm(`卸载技能「${skill.name}」？\n该操作调 openclaw skills uninstall ${slug}`)) return
+      setUninstalling(slug)
+      try {
+        const res = await uninstallSkill(slug)
+        setToast(res.ok ? `${skill.name} 已卸载` : res.message || '卸载失败')
+        if (res.ok) reload()
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : String(e))
+      } finally {
+        setUninstalling(null)
+        setTimeout(() => setToast(null), 4000)
+      }
+    },
+    [reload],
+  )
+
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl space-y-4 p-6">
@@ -150,7 +178,12 @@ export function SkillsPage() {
               </div>
             )}
             {skills.map((s) => (
-              <SkillCard key={s.skillKey ?? s.name} skill={s} />
+              <SkillCard
+                key={s.skillKey ?? s.name}
+                skill={s}
+                uninstalling={uninstalling === (s.skillKey ?? s.name)}
+                onUninstall={() => handleUninstall(s)}
+              />
             ))}
           </div>
         )}
@@ -233,7 +266,15 @@ function Badge({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SkillCard({ skill }: { skill: Skill }) {
+function SkillCard({
+  skill,
+  uninstalling,
+  onUninstall,
+}: {
+  skill: Skill
+  uninstalling: boolean
+  onUninstall: () => void
+}) {
   const isEligible = skill.eligible !== false
   const isDisabled = skill.disabled === true || skill.blockedByAllowlist === true
   const StatusIcon = isDisabled ? XCircle : isEligible ? CheckCircle2 : AlertCircle
@@ -284,15 +325,32 @@ function SkillCard({ skill }: { skill: Skill }) {
           ))}
         </div>
       )}
-      {skill.homepage && (
-        <button
-          type="button"
-          onClick={() => skill.homepage && ipc.openExternal(skill.homepage)}
-          className="flex items-center gap-1 self-start text-[11px] text-primary hover:underline"
-        >
-          文档 <ExternalLink className="h-2.5 w-2.5" />
-        </button>
-      )}
+      <div className="flex items-center justify-between border-t pt-2">
+        {skill.homepage ? (
+          <button
+            type="button"
+            onClick={() => skill.homepage && ipc.openExternal(skill.homepage)}
+            className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+          >
+            文档 <ExternalLink className="h-2.5 w-2.5" />
+          </button>
+        ) : (
+          <span />
+        )}
+        {!skill.bundled && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onUninstall}
+            disabled={uninstalling}
+            className="h-6 text-[10px] text-destructive"
+            data-testid="skill-uninstall"
+          >
+            {uninstalling ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Trash2 className="mr-1 h-3 w-3" />}
+            卸载
+          </Button>
+        )}
+      </div>
     </Card>
   )
 }

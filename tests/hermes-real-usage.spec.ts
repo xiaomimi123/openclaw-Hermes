@@ -13,6 +13,8 @@ import { attachLogCapture, summarize } from './helpers/log-capture'
  *  - 单 worker 模式跑(playwright.config.ts 已配 workers: 1)
  */
 
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
 test.describe('Hermes 真实功能 e2e', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {

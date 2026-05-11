@@ -621,6 +621,22 @@ ipcMain.handle('lingjing:skills-info', async (_event, params) => {
   }
 })
 
+ipcMain.handle('lingjing:skills-uninstall', async (_event, params) => {
+  // OpenClaw Gateway 端 skills.uninstall / skills.remove RPC 都是 unknown method，
+  // 走 openclaw skills uninstall CLI 兜底（Gateway 重启后会从 .openclaw/skills/ 重新发现）
+  const slug = params?.slug
+  if (!slug || typeof slug !== 'string') return { ok: false, message: 'slug 为空' }
+  const bin = await findOpenClawBin()
+  if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
+  const args = ['skills', 'uninstall', slug]
+  if (params?.force) args.push('--force')
+  const r = await runCommand(bin, args, { timeout: 60000 })
+  if (r.code !== 0) {
+    return { ok: false, message: `卸载失败:${(r.stderr || r.stdout || `exit ${r.code}`).slice(0, 400)}` }
+  }
+  return { ok: true, stdout: r.stdout?.slice(-400) || '' }
+})
+
 ipcMain.handle('lingjing:open-external', async (_event, url) => {
   if (typeof url !== 'string') return { ok: false, message: 'invalid url' }
   // 只允许 http/https,防 file:// 攻击

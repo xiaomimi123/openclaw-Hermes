@@ -96,6 +96,7 @@ export interface LingjingPreload {
   openExternal(url: string): Promise<{ ok: boolean; message?: string }>
   skillsSearch(params?: SkillsSearchParams): Promise<{ ok: boolean; results?: unknown[]; message?: string }>
   skillsInstall(params: SkillsInstallParams): Promise<{ ok: boolean; stdout?: string; message?: string }>
+  skillsUninstall(params: { slug: string; force?: boolean }): Promise<{ ok: boolean; stdout?: string; message?: string }>
   skillsInfo(params: { slug: string }): Promise<{ ok: boolean; text: string; code: number }>
   selectFile(opts?: SelectFileOptions): Promise<SelectResult>
   selectFolder(opts?: SelectFolderOptions): Promise<SelectResult>

@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('lingjing', {
    */
   skillsSearch: (params) => ipcRenderer.invoke('lingjing:skills-search', params),
   skillsInstall: (params) => ipcRenderer.invoke('lingjing:skills-install', params),
+  skillsUninstall: (params) => ipcRenderer.invoke('lingjing:skills-uninstall', params),
   skillsInfo: (params) => ipcRenderer.invoke('lingjing:skills-info', params),
   /**
    * 系统原生文件/文件夹选择器，Phase 5 任务执行的路径参数用。

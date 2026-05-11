@@ -59,6 +59,10 @@ export async function installSkill(slug: string, force = false) {
   return ipc.skillsInstall({ slug, force })
 }
 
+export async function uninstallSkill(slug: string, force = false) {
+  return ipc.skillsUninstall({ slug, force })
+}
+
 export async function getSkillInfo(slug: string) {
   return ipc.skillsInfo({ slug })
 }

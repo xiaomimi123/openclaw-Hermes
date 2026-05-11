@@ -4,8 +4,47 @@
 import { useCallback, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+// 只注册常用语言，砍掉 600+KB 全语言包。其他语言降级为无高亮（仍可读）。
+import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx'
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx'
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
+import shell from 'react-syntax-highlighter/dist/esm/languages/prism/shell-session'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml'
+import markdownLang from 'react-syntax-highlighter/dist/esm/languages/prism/markdown'
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql'
+import go from 'react-syntax-highlighter/dist/esm/languages/prism/go'
+import rust from 'react-syntax-highlighter/dist/esm/languages/prism/rust'
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css'
+import diff from 'react-syntax-highlighter/dist/esm/languages/prism/diff'
+
+SyntaxHighlighter.registerLanguage('jsx', jsx)
+SyntaxHighlighter.registerLanguage('tsx', tsx)
+SyntaxHighlighter.registerLanguage('typescript', typescript)
+SyntaxHighlighter.registerLanguage('ts', typescript)
+SyntaxHighlighter.registerLanguage('javascript', javascript)
+SyntaxHighlighter.registerLanguage('js', javascript)
+SyntaxHighlighter.registerLanguage('python', python)
+SyntaxHighlighter.registerLanguage('py', python)
+SyntaxHighlighter.registerLanguage('bash', bash)
+SyntaxHighlighter.registerLanguage('sh', bash)
+SyntaxHighlighter.registerLanguage('shell', shell)
+SyntaxHighlighter.registerLanguage('json', json)
+SyntaxHighlighter.registerLanguage('yaml', yaml)
+SyntaxHighlighter.registerLanguage('yml', yaml)
+SyntaxHighlighter.registerLanguage('markdown', markdownLang)
+SyntaxHighlighter.registerLanguage('md', markdownLang)
+SyntaxHighlighter.registerLanguage('sql', sql)
+SyntaxHighlighter.registerLanguage('go', go)
+SyntaxHighlighter.registerLanguage('rust', rust)
+SyntaxHighlighter.registerLanguage('rs', rust)
+SyntaxHighlighter.registerLanguage('css', css)
+SyntaxHighlighter.registerLanguage('diff', diff)
 import { Bot, User, Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

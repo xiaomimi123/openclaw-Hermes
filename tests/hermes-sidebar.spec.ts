@@ -21,6 +21,8 @@ const HERMES_PAGES = [
   { name: 'Hermes 系统', path: '/hermes/system', mustHave: '.app-layout-content' },
 ]
 
+test.beforeEach(() => { test.skip(true, 'v1 React 重构后此 Hermes/MyWorld 功能不迁，spec 暂跳过') })
+
 test.describe('工坊侧侧边栏冒烟', () => {
   test.beforeEach(async ({ page }) => {
     // 预设 localStorage,让 layout onMounted 进 hermes 分支
@@ -49,7 +51,7 @@ test.describe('工坊侧侧边栏冒烟', () => {
 
       // 标志元素 —— layout 主区
       try {
-        await expect(page.locator(p.mustHave).first()).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator(p.mustHave).first()).toBeVisible({ timeout: 10_000 })
       } catch (err) {
         console.log(summarize(logs))
         throw err
