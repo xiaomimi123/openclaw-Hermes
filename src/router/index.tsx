@@ -15,7 +15,6 @@ import { AgentList } from '@/pages/agents/AgentList'
 import { SkillsPage } from '@/pages/skills/SkillsPage'
 import { CronPage } from '@/pages/cron/CronPage'
 import { ChannelsPage } from '@/pages/channels/ChannelsPage'
-import { DesktopPage } from '@/pages/desktop/DesktopPage'
 
 export const router = createBrowserRouter([
   {
@@ -34,7 +33,6 @@ export const router = createBrowserRouter([
       { path: 'skills', element: <SkillsPage /> },
       { path: 'cron', element: <CronPage /> },
       { path: 'channels', element: <ChannelsPage /> },
-      { path: 'desktop', element: <DesktopPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'account/usage', element: <UsagePage /> },
       { path: 'settings', element: <SettingsPage /> },

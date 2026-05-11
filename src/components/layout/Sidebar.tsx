@@ -12,7 +12,6 @@ import {
   Package,
   AlarmClock,
   MessageCircle,
-  Monitor,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -37,7 +36,6 @@ const TOOLS_NAV: NavItem[] = [
   { to: '/skills', label: '技能商城', icon: Package },
   { to: '/cron', label: '定时任务', icon: AlarmClock },
   { to: '/channels', label: '通信渠道', icon: MessageCircle },
-  { to: '/desktop', label: '远程桌面', icon: Monitor },
 ]
 
 const BOTTOM_NAV: NavItem[] = [

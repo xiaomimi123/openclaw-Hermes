@@ -32,7 +32,6 @@ import configRouter from './routes/config.js'
 import filesRouter from './routes/files.js'
 import terminalRouter from './routes/terminal.js'
 import hermesCliRouter from './routes/hermes-cli.js'
-import desktopRouter from './routes/desktop.js'
 import backupRouter from './routes/backup.js'
 import {
   cleanupAllTerminalSessions,
@@ -100,7 +99,6 @@ app.use(configRouter)
 app.use(filesRouter)
 app.use(terminalRouter)
 app.use(hermesCliRouter)
-app.use(desktopRouter)
 app.use(backupRouter)
 
 
