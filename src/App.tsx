@@ -1,17 +1,32 @@
-// App 根：登录闸 + RouterProvider + 主题。
-// 本地后端 auth 启用时先弹 LoginGate，登录拿到 token 后才进主界面。
+// App 根：4 层守门 + 主题 + 路由。
+//
+// 启动顺序：
+//   1. 拉本地后端 /api/auth/config（useAuth）
+//   2. 本地后端 enabled 且无 token → LoginGate（admin/admin）
+//   3. 拿到本地 token 后，refresh 灵境云端 session（lingjing-auth-store）
+//   4. 灵境未登录 且 当前不在 /onboarding → RouterProvider 内部会做 redirect
 
+import { useEffect } from 'react'
 import { RouterProvider } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
+import { useLingjingAuthStore } from '@/stores/lingjing-auth-store'
 import { router } from '@/router'
 import { LoginGate } from '@/components/auth/LoginGate'
 
 export default function App() {
   useTheme()
-  const { authEnabled, needsLogin, checking, error, login } = useAuth()
+  const { authEnabled, needsLogin, checking, error, login, token } = useAuth()
+  const refreshLingjing = useLingjingAuthStore((s) => s.refreshSelf)
 
-  // 还在拉 /api/auth/config 中：占位
+  // 拿到本地 token（或本地无需 auth）后，启动校验灵境云端 session
+  useEffect(() => {
+    if (authEnabled === false || token) {
+      refreshLingjing()
+    }
+  }, [authEnabled, token, refreshLingjing])
+
+  // 拉本地配置中
   if (authEnabled === null) {
     return (
       <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">

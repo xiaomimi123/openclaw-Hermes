@@ -1,5 +1,5 @@
 // 路由表。v1 范围按 PRD §5.7 + §5.8 简化版（核心区 4 + 底部 2）。
-// 所有页面在 Phase 3 用 PlaceholderPage 占位，Phase 4+ 替换。
+// /onboarding 是独立路由（不在 AppLayout 内），跳过侧栏。
 
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -8,8 +8,15 @@ import { ChatPage } from '@/pages/chat/ChatPage'
 import { TaskCenter } from '@/pages/tasks/TaskCenter'
 import { TaskExecutionPage } from '@/pages/tasks/TaskExecutionPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { AccountPage } from '@/pages/account/AccountPage'
+import { UsagePage } from '@/pages/account/UsagePage'
+import { OnboardingPage } from '@/pages/onboarding/OnboardingPage'
 
 export const router = createBrowserRouter([
+  {
+    path: '/onboarding',
+    element: <OnboardingPage />,
+  },
   {
     path: '/',
     element: <AppLayout />,
@@ -28,26 +35,8 @@ export const router = createBrowserRouter([
           />
         ),
       },
-      {
-        path: 'account',
-        element: (
-          <PlaceholderPage
-            title="灵境账号"
-            description="登录态、余额、用量"
-            phase="Phase 6 接入"
-          />
-        ),
-      },
-      {
-        path: 'account/usage',
-        element: (
-          <PlaceholderPage
-            title="用量明细"
-            description="本月消息数、tokens、费用"
-            phase="Phase 6 接入"
-          />
-        ),
-      },
+      { path: 'account', element: <AccountPage /> },
+      { path: 'account/usage', element: <UsagePage /> },
       { path: 'settings', element: <SettingsPage /> },
       {
         path: '*',

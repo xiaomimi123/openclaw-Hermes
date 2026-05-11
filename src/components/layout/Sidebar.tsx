@@ -1,16 +1,18 @@
 // 侧栏导航。按 PRD §5.8 v1 结构：核心区 + 底部。
 // 路由切换用 react-router-dom 的 <NavLink>，活跃态用 aria-current 触发样式。
 
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import {
   MessageSquare,
   Rocket,
   Bot,
   User,
   Settings,
+  Coins,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLingjingAuthStore } from '@/stores/lingjing-auth-store'
 
 interface NavItem {
   to: string
@@ -50,6 +52,37 @@ function NavItemLink({ item }: { item: NavItem }) {
   )
 }
 
+function UserCard() {
+  const user = useLingjingAuthStore((s) => s.user)
+  const loggedIn = useLingjingAuthStore((s) => s.loggedIn)
+
+  if (!loggedIn || !user) return null
+
+  const quota = user.quota ?? 0
+  const display = user.display_name || user.username
+  const initial = display.charAt(0).toUpperCase()
+
+  return (
+    <Link
+      to="/account"
+      className="flex items-center gap-2 rounded-md border bg-background p-2 transition-colors hover:bg-accent"
+      data-testid="sidebar-user-card"
+      data-user-id={user.id}
+    >
+      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        {initial}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium">{display}</div>
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Coins className="h-2.5 w-2.5" />
+          <span className="font-mono">{quota.toLocaleString('zh-CN')}</span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 export function Sidebar() {
   return (
     <aside className="flex h-full w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -69,10 +102,13 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="flex flex-col gap-1 border-t p-2">
-        {BOTTOM_NAV.map((item) => (
-          <NavItemLink key={item.to} item={item} />
-        ))}
+      <div className="flex flex-col gap-2 border-t p-2">
+        <UserCard />
+        <div className="flex flex-col gap-1">
+          {BOTTOM_NAV.map((item) => (
+            <NavItemLink key={item.to} item={item} />
+          ))}
+        </div>
       </div>
     </aside>
   )
