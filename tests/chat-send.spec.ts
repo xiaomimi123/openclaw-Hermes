@@ -24,24 +24,22 @@ test.describe('对话发送流程', () => {
     // 3) 给对话页 5 秒初始化(拉模型/会话/历史)
     await page.waitForTimeout(5000)
 
-    // 4) 找输入框 —— 项目里 textarea 占位是"给灵境发消息..."(我们改过)
-    //    或原版的"输入消息(...)"
+    // 4) 找输入框 —— React 重构后用 data-testid，老 placeholder 兜底
     const input = page
-      .locator('textarea[placeholder*="发消息"], textarea[placeholder*="输入消息"]')
+      .locator('[data-testid="chat-input"], textarea[placeholder*="发消息"], textarea[placeholder*="输入消息"]')
       .first()
     await expect(input).toBeVisible({ timeout: 10_000 })
     await input.click()
     await input.fill('hi 简单回复 ok 即可')
 
-    // 5) 找发送按钮(原版 chat 文案 "发送" / lingjing 版 "发送")
-    const sendBtn = page.locator('button:has-text("发送")').first()
+    // 5) 找发送按钮（React 用 testid，老版用文案）
+    const sendBtn = page.locator('[data-testid="chat-send"], button:has-text("发送")').first()
     await expect(sendBtn).toBeEnabled({ timeout: 5_000 })
     await sendBtn.click()
 
-    // 6) 等回复 —— 看页面上有没有出现助手气泡(.chat-bubble.is-assistant 或 .msg-row-assistant)
-    //    最长等 25 秒,超时也不算 fail,继续打印日志
+    // 6) 等回复 —— React 版 [data-testid="chat-message"][data-role="assistant"]，老版兜底
     const assistantLocator = page.locator(
-      '.chat-bubble.is-assistant, .msg-row-assistant',
+      '[data-testid="chat-message"][data-role="assistant"], .chat-bubble.is-assistant, .msg-row-assistant',
     )
     let firstReplySeen = false
     try {

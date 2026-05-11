@@ -130,6 +130,98 @@ export const openClaw = {
       [{ sessionKey }, { key: sessionKey }, { session: sessionKey }],
     )
   },
+
+  // ============ Session 管理 ============
+
+  /** 创建新会话（OpenClaw 称 'spawn'） */
+  async spawnSession(params: { agentId?: string; channel?: string; peer?: string; label?: string }): Promise<{ sessionKey: string }> {
+    const result = await callRPCWithFallback<{ sessionKey?: string; key?: string }>(
+      ['sessions.spawn', 'session.spawn'],
+      [
+        {
+          ...(params.agentId ? { agentId: params.agentId } : {}),
+          ...(params.channel ? { channel: params.channel } : {}),
+          ...(params.peer ? { peer: params.peer } : {}),
+          ...(params.label ? { label: params.label } : {}),
+        },
+      ],
+    )
+    const sessionKey =
+      result?.sessionKey ||
+      result?.key ||
+      `agent:${params.agentId || 'main'}:${params.channel || 'main'}:dm:${params.peer || `web-${Date.now()}`}`
+    return { sessionKey }
+  },
+
+  /** 删除会话 */
+  async deleteSession(sessionKey: string): Promise<void> {
+    await callRPCWithFallback(
+      ['sessions.delete', 'session.delete'],
+      [{ key: sessionKey }, { sessionKey }],
+    )
+  },
+
+  /** 重置会话（清空历史） */
+  async resetSession(sessionKey: string): Promise<void> {
+    await callRPCWithFallback(
+      ['sessions.reset', 'session.reset'],
+      [{ key: sessionKey, reason: 'reset' }, { key: sessionKey }, { sessionKey }],
+    )
+  },
+
+  // ============ 模型管理 ============
+
+  /** 列出可用模型 */
+  async listModels(): Promise<ModelInfo[]> {
+    const payload = await callRPCWithFallback<unknown>(
+      ['models.list', 'model.list'],
+      [{}],
+    )
+    return normalizeModelList(payload)
+  },
+
+  /** 设置某会话使用的模型 */
+  async setAgentModel(sessionKey: string, model: string): Promise<void> {
+    await callRPC('agent.model.set', { sessionKey, model })
+  },
+}
+
+// ============ Types ============
+
+export interface ModelInfo {
+  id: string
+  name?: string
+  provider?: string
+  description?: string
+  [k: string]: unknown
+}
+
+function normalizeModelList(payload: unknown): ModelInfo[] {
+  let list: unknown[] = []
+  if (Array.isArray(payload)) list = payload
+  else if (payload && typeof payload === 'object') {
+    const rec = payload as Record<string, unknown>
+    for (const key of ['models', 'items', 'list', 'data', 'entries']) {
+      const arr = rec[key]
+      if (Array.isArray(arr)) { list = arr; break }
+    }
+  }
+  return list
+    .map((item): ModelInfo | null => {
+      if (typeof item === 'string') return { id: item, name: item }
+      if (!item || typeof item !== 'object') return null
+      const r = item as Record<string, unknown>
+      const id = (r.id ?? r.ref ?? r.model ?? r.name) as string | undefined
+      if (!id || typeof id !== 'string') return null
+      return {
+        id,
+        name: typeof r.name === 'string' ? r.name : id,
+        provider: typeof r.provider === 'string' ? r.provider : undefined,
+        description: typeof r.description === 'string' ? r.description : undefined,
+        ...r,
+      }
+    })
+    .filter((m): m is ModelInfo => m !== null)
 }
 
 function normalizeHistory(payload: unknown): ChatMessageRow[] {

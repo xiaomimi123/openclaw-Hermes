@@ -4,17 +4,17 @@
 import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
 import { Send, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ModelSelector } from '@/components/chat/ModelSelector'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
   onSend: (text: string) => void
   onAbort?: () => void
   sending: boolean
-  model?: string | null
   disabled?: boolean
 }
 
-export function ChatInput({ onSend, onAbort, sending, model, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onAbort, sending, disabled }: ChatInputProps) {
   const [text, setText] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
 
@@ -65,10 +65,7 @@ export function ChatInput({ onSend, onAbort, sending, model, disabled }: ChatInp
           style={{ minHeight: 44, maxHeight: 200 }}
         />
         <div className="flex items-center justify-between border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span>模型：</span>
-            <span className="font-mono text-foreground">{model ?? '默认'}</span>
-          </div>
+          <ModelSelector />
           {sending ? (
             <Button
               data-testid="chat-abort"

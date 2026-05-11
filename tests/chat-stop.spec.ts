@@ -24,23 +24,21 @@ test.describe('对话停止流程', () => {
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(5000)
 
-    // 2) 找输入框 + 发一条会跑得久的消息
+    // 2) 找输入框 + 发一条会跑得久的消息（React testid + 老 placeholder 兜底）
     const input = page
-      .locator('textarea[placeholder*="发消息"], textarea[placeholder*="输入消息"]')
+      .locator('[data-testid="chat-input"], textarea[placeholder*="发消息"], textarea[placeholder*="输入消息"]')
       .first()
     await expect(input).toBeVisible({ timeout: 10_000 })
     await input.click()
     // 让 LLM 多说几句,以便我们有窗口时间点停止
     await input.fill('请用中文写一篇关于人工智能未来发展的长文,至少 800 字,分多个段落详细论述')
 
-    const sendBtn = page.locator('button:has-text("发送")').first()
+    const sendBtn = page.locator('[data-testid="chat-send"], button:has-text("发送")').first()
     await expect(sendBtn).toBeEnabled({ timeout: 5_000 })
     await sendBtn.click()
 
-    // 3) 等"停止"按钮出现 —— 说明 agentBusy=true,LLM 正在流式回复
-    //    云端偶尔回得很快(几百毫秒就完成),来不及点停止 —— 这种情况标记为 "no-op pass"
-    //    而不是 fail,因为停止本身没东西可测
-    const stopBtn = page.locator('button:has-text("停止")').first()
+    // 3) 等中断按钮出现 —— React 重构后文案改"中断"，testid="chat-abort"
+    const stopBtn = page.locator('[data-testid="chat-abort"], button:has-text("中断"), button:has-text("停止")').first()
     try {
       await expect(stopBtn).toBeVisible({ timeout: 10_000 })
     } catch {
