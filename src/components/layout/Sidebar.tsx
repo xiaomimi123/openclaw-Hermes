@@ -9,6 +9,10 @@ import {
   User,
   Settings,
   Coins,
+  Package,
+  AlarmClock,
+  MessageCircle,
+  Monitor,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,6 +31,13 @@ const CORE_NAV: NavItem[] = [
   { to: '/chat', label: '对话', icon: MessageSquare },
   { to: '/tasks', label: '任务中心', icon: Rocket },
   { to: '/agents', label: '我的 Agent', icon: Bot },
+]
+
+const TOOLS_NAV: NavItem[] = [
+  { to: '/skills', label: '技能商城', icon: Package },
+  { to: '/cron', label: '定时任务', icon: AlarmClock },
+  { to: '/channels', label: '通信渠道', icon: MessageCircle },
+  { to: '/desktop', label: '远程桌面', icon: Monitor },
 ]
 
 const BOTTOM_NAV: NavItem[] = [
@@ -101,11 +112,17 @@ export function Sidebar() {
         <div className="text-sm font-semibold">灵境</div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 p-2">
+      <nav className="flex flex-1 flex-col gap-1 overflow-auto p-2">
         <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           核心
         </div>
         {CORE_NAV.map((item) => (
+          <NavItemLink key={item.to} item={item} />
+        ))}
+        <div className="mt-3 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          工具
+        </div>
+        {TOOLS_NAV.map((item) => (
           <NavItemLink key={item.to} item={item} />
         ))}
       </nav>
