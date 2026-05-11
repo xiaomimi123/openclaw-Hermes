@@ -73,6 +73,25 @@ export const useChatStore = defineStore('chat', () => {
   let pendingStreamMessages: ChatMessage[] = []
   let lastToolPreviewUpdateAtMs = 0
   const finalizedRuns = new Map<string, number>()
+  // watchdog timer 按 agentId 管理；新一轮 send/abort 会替换旧的，setSessionKey/clearTimers 也会清
+  const sendWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
+  const abortWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
+
+  function clearAgentWatchdogs(agentId?: string) {
+    const targets = agentId ? [agentId] : [...sendWatchdogs.keys(), ...abortWatchdogs.keys()]
+    for (const id of targets) {
+      const s = sendWatchdogs.get(id)
+      if (s) {
+        clearTimeout(s)
+        sendWatchdogs.delete(id)
+      }
+      const a = abortWatchdogs.get(id)
+      if (a) {
+        clearTimeout(a)
+        abortWatchdogs.delete(id)
+      }
+    }
+  }
 
   // 获取或创建智能体状态
   function getOrCreateAgentStatus(agentId: string): AgentStatus {
@@ -318,6 +337,8 @@ export const useChatStore = defineStore('chat', () => {
       resetAgentStatus(agentId)
       resetAgentProgress(agentId)
     }
+    // 切会话/重新 setSessionKey 时清掉所有 watchdog，避免过时触发误重置
+    clearAgentWatchdogs()
     finalizedRuns.clear()
     pendingStreamMessages = []
     if (streamFlushRaf !== null) {
@@ -386,6 +407,7 @@ export const useChatStore = defineStore('chat', () => {
       streamFlushRaf = null
     }
     pendingStreamMessages = []
+    clearAgentWatchdogs()
   }
 
   function scheduleHistoryRefresh(delay = 250) {
@@ -836,16 +858,19 @@ export const useChatStore = defineStore('chat', () => {
         }
 
         if (stream === 'assistant') {
-          // touchAgentStatus(agentId)
+          // 终态保护：不允许 assistant stream 把已完成的 phase 拉回 replying
+          const isTerminalPhase = agentStatus.phase === 'done' || agentStatus.phase === 'aborted' || agentStatus.phase === 'error' || agentStatus.phase === 'idle'
+          if (isTerminalPhase) return
+
           // 提取消息内容
           const rawContent = asString(data.content || data.text || data.delta)
           const content = rawContent.replace(/\n{3,}/g, '\n\n').trim()
           const lastMessage = content || agentStatus.lastMessage
-          
+
           if (agentStatus.phase !== 'replying' && agentStatus.phase !== 'tool') {
             // chat delta 可能因节流略晚于 agent assistant stream，这里做兜底提示
-            setAgentStatusPhase(agentId, 'replying', { 
-              runId: runIdInEvent || activeRunId || null, 
+            setAgentStatusPhase(agentId, 'replying', {
+              runId: runIdInEvent || activeRunId || null,
               detail: null,
               sessionKey: keyInEvent,
               lastMessage,
@@ -896,7 +921,8 @@ export const useChatStore = defineStore('chat', () => {
 
     if (normalizedEvent.startsWith('model.')) {
       if (normalizedEvent === 'model.streaming') {
-        if (agentStatus.phase !== 'replying') {
+        const isTerminalPhase = agentStatus.phase === 'done' || agentStatus.phase === 'aborted' || agentStatus.phase === 'error' || agentStatus.phase === 'idle'
+        if (!isTerminalPhase && agentStatus.phase !== 'replying') {
           setAgentStatusPhase(agentId, 'replying', { runId: activeRunId || runIdInEvent || null, detail: null })
         }
       }
@@ -941,6 +967,24 @@ export const useChatStore = defineStore('chat', () => {
       if (agentStatus.phase === 'sending' && agentStatus.runId === idempotencyKey) {
         setAgentStatusPhase(agentId, 'waiting', { runId: idempotencyKey, detail: null })
       }
+      // 1.4s/4.2s 软兜底：silent fetchHistory，覆盖部分事件丢失场景
+      schedulePostSendRefreshes()
+      // 兜底 watchdog：若 90s 内未收到终态 SSE 事件，强制重置 phase 并刷新历史。
+      // 替换同 agentId 的旧 watchdog（避免连续多次发送累计）；触发时再次校验
+      // runId 是否还是本次的 idempotencyKey，否则视为已被新一轮 send/abort 覆盖，跳过。
+      const prevWatchdog = sendWatchdogs.get(agentId)
+      if (prevWatchdog) clearTimeout(prevWatchdog)
+      const watchdog = setTimeout(() => {
+        sendWatchdogs.delete(agentId)
+        const s = getOrCreateAgentStatus(agentId)
+        if (s.runId !== idempotencyKey) return // 新一轮 run 已经覆盖，本次 watchdog 失效
+        const isBusy = s.phase === 'sending' || s.phase === 'waiting' || s.phase === 'thinking' || s.phase === 'tool' || s.phase === 'replying' || s.phase === 'aborting'
+        if (isBusy) {
+          setAgentStatusPhase(agentId, 'idle', { runId: null, detail: null })
+          scheduleHistoryRefresh(200)
+        }
+      }, 90_000)
+      sendWatchdogs.set(agentId, watchdog)
     } catch (error) {
       lastError.value = error instanceof Error ? error.message : String(error)
       messages.value = messages.value.filter((item) => item.id !== idempotencyKey)
@@ -972,9 +1016,23 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
+    const abortingRunId = agentStatus.runId
     setAgentStatusPhase(agentId, 'aborting', { detail: byLocale('停止中...', 'Stopping...', getActiveLocale()) })
     try {
       await wsStore.rpc.abortChat(undefined, sessionKey.value.trim())
+      // 兜底：若 SSE chat.aborted 事件 2s 内没到，强制翻 aborted。
+      // 替换同 agentId 的旧 abort watchdog；触发时再校验 phase + runId 是不是本次发起的 abort。
+      const prev = abortWatchdogs.get(agentId)
+      if (prev) clearTimeout(prev)
+      const watchdog = setTimeout(() => {
+        abortWatchdogs.delete(agentId)
+        const s = getOrCreateAgentStatus(agentId)
+        if (s.phase !== 'aborting') return // 已经被 SSE 翻完了
+        if (abortingRunId && s.runId !== abortingRunId) return // 新一轮已经覆盖
+        setAgentStatusPhase(agentId, 'aborted', { runId: null, detail: null })
+        scheduleHistoryRefresh(200)
+      }, 2_000)
+      abortWatchdogs.set(agentId, watchdog)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       setAgentStatusPhase(agentId, 'error', { runId: null, detail: reason })

@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs'
-import vue from '@vitejs/plugin-vue'
+import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { defineConfig, loadEnv } from 'vite'
 
@@ -10,12 +10,12 @@ const packageJson = JSON.parse(
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appVersion = packageJson.version || ''
-  
+
   const backendPort = env.PORT || '3000'
   const frontendPort = env.DEV_PORT || '3001'
-  
+
   return {
-    plugins: [vue()],
+    plugins: [react()],
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
@@ -32,7 +32,6 @@ export default defineConfig(({ mode }) => {
           // SSE 流式响应需要禁用缓冲
           configure: (proxy) => {
             proxy.on('proxyRes', (proxyRes) => {
-              // 对于 SSE 响应，禁用代理缓冲
               if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
                 proxyRes.headers['cache-control'] = 'no-cache'
                 proxyRes.headers['x-accel-buffering'] = 'no'
@@ -48,13 +47,13 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vue-vendor': ['vue', 'vue-router', 'pinia'],
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           },
         },
       },
     },
     define: {
-      'import.meta.env.VITE_APP_TITLE': JSON.stringify(env.VITE_APP_TITLE || 'OpenClaw Web'),
+      'import.meta.env.VITE_APP_TITLE': JSON.stringify(env.VITE_APP_TITLE || '灵境'),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
   }
