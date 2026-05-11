@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './i18n' // 触发 i18next 初始化
 import App from './App'
 import './index.css'
 
