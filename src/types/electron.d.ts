@@ -44,6 +44,43 @@ export interface SkillsInstallParams {
   force?: boolean
 }
 
+export interface FileFilter {
+  name: string
+  extensions: string[]
+}
+
+export interface SelectFileOptions {
+  title?: string
+  defaultPath?: string
+  filters?: FileFilter[]
+  multiSelect?: boolean
+  showHidden?: boolean
+}
+
+export interface SelectFolderOptions {
+  title?: string
+  defaultPath?: string
+  multiSelect?: boolean
+}
+
+export interface SaveFileOptions {
+  title?: string
+  defaultPath?: string
+  filters?: FileFilter[]
+}
+
+export interface SelectResult {
+  ok: boolean
+  canceled: boolean
+  paths: string[]
+}
+
+export interface SaveResult {
+  ok: boolean
+  canceled: boolean
+  path: string | null
+}
+
 export interface LingjingPreload {
   platform: string
   version: string
@@ -60,6 +97,11 @@ export interface LingjingPreload {
   skillsSearch(params?: SkillsSearchParams): Promise<{ ok: boolean; results?: unknown[]; message?: string }>
   skillsInstall(params: SkillsInstallParams): Promise<{ ok: boolean; stdout?: string; message?: string }>
   skillsInfo(params: { slug: string }): Promise<{ ok: boolean; text: string; code: number }>
+  selectFile(opts?: SelectFileOptions): Promise<SelectResult>
+  selectFolder(opts?: SelectFolderOptions): Promise<SelectResult>
+  saveFile(opts?: SaveFileOptions): Promise<SaveResult>
+  showInFolder(path: string): Promise<{ ok: boolean; message?: string }>
+  readTextFile(path: string): Promise<{ ok: boolean; content?: string; message?: string }>
 }
 
 declare global {

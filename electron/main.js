@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, net as electronNet, session, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, net as electronNet, session, shell } from 'electron'
 import path from 'node:path'
 import net from 'node:net'
 import os from 'node:os'
@@ -627,6 +627,75 @@ ipcMain.handle('lingjing:open-external', async (_event, url) => {
   if (!/^https?:\/\//i.test(url)) return { ok: false, message: 'unsupported scheme' }
   await shell.openExternal(url)
   return { ok: true }
+})
+
+// 系统原生文件选择器。任务执行页填路径参数时弹出
+ipcMain.handle('lingjing:select-file', async (_event, opts) => {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? welcomeWindow
+  const properties = ['openFile']
+  if (opts && opts.multiSelect) properties.push('multiSelections')
+  if (opts && opts.showHidden) properties.push('showHiddenFiles')
+  const dialogOpts = { properties }
+  if (opts && opts.title) dialogOpts.title = opts.title
+  if (opts && opts.defaultPath) dialogOpts.defaultPath = opts.defaultPath
+  if (opts && Array.isArray(opts.filters)) dialogOpts.filters = opts.filters
+  const res = win
+    ? await dialog.showOpenDialog(win, dialogOpts)
+    : await dialog.showOpenDialog(dialogOpts)
+  if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true, paths: [] }
+  return { ok: true, canceled: false, paths: res.filePaths }
+})
+
+ipcMain.handle('lingjing:select-folder', async (_event, opts) => {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? welcomeWindow
+  const properties = ['openDirectory']
+  if (opts && opts.multiSelect) properties.push('multiSelections')
+  const dialogOpts = { properties }
+  if (opts && opts.title) dialogOpts.title = opts.title
+  if (opts && opts.defaultPath) dialogOpts.defaultPath = opts.defaultPath
+  const res = win
+    ? await dialog.showOpenDialog(win, dialogOpts)
+    : await dialog.showOpenDialog(dialogOpts)
+  if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true, paths: [] }
+  return { ok: true, canceled: false, paths: res.filePaths }
+})
+
+ipcMain.handle('lingjing:show-in-folder', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || !filePath) return { ok: false, message: 'invalid path' }
+  try {
+    shell.showItemInFolder(filePath)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, message: e?.message ?? String(e) }
+  }
+})
+
+ipcMain.handle('lingjing:read-text-file', async (_event, filePath) => {
+  if (typeof filePath !== 'string' || !filePath) return { ok: false, message: 'invalid path' }
+  // 仅允许 ~/.openclaw/ 下的文件（避免任意读取）
+  const home = os.homedir()
+  const safeRoot = path.join(home, '.openclaw')
+  const abs = path.resolve(filePath.replace(/^~/, home))
+  if (!abs.startsWith(safeRoot)) return { ok: false, message: '只允许读取 ~/.openclaw/ 下的文件' }
+  try {
+    const data = await fs.readFile(abs, 'utf-8')
+    return { ok: true, content: data }
+  } catch (e) {
+    return { ok: false, message: e?.message ?? String(e) }
+  }
+})
+
+ipcMain.handle('lingjing:save-file', async (_event, opts) => {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? welcomeWindow
+  const dialogOpts = {}
+  if (opts && opts.title) dialogOpts.title = opts.title
+  if (opts && opts.defaultPath) dialogOpts.defaultPath = opts.defaultPath
+  if (opts && Array.isArray(opts.filters)) dialogOpts.filters = opts.filters
+  const res = win
+    ? await dialog.showSaveDialog(win, dialogOpts)
+    : await dialog.showSaveDialog(dialogOpts)
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true, path: null }
+  return { ok: true, canceled: false, path: res.filePath }
 })
 
 ipcMain.handle('lingjing:gateway-status', async () => {

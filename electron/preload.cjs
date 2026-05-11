@@ -48,4 +48,16 @@ contextBridge.exposeInMainWorld('lingjing', {
   skillsSearch: (params) => ipcRenderer.invoke('lingjing:skills-search', params),
   skillsInstall: (params) => ipcRenderer.invoke('lingjing:skills-install', params),
   skillsInfo: (params) => ipcRenderer.invoke('lingjing:skills-info', params),
+  /**
+   * 系统原生文件/文件夹选择器，Phase 5 任务执行的路径参数用。
+   * selectFile/selectFolder 返回 { ok, canceled, paths: string[] }；
+   * saveFile 返回 { ok, canceled, path: string|null }。
+   */
+  selectFile: (opts) => ipcRenderer.invoke('lingjing:select-file', opts),
+  selectFolder: (opts) => ipcRenderer.invoke('lingjing:select-folder', opts),
+  saveFile: (opts) => ipcRenderer.invoke('lingjing:save-file', opts),
+  /** 在 Finder/资源管理器中显示文件 */
+  showInFolder: (path) => ipcRenderer.invoke('lingjing:show-in-folder', path),
+  /** 读取 ~/.openclaw/ 下的文本文件（设置页用） */
+  readTextFile: (path) => ipcRenderer.invoke('lingjing:read-text-file', path),
 })

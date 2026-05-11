@@ -13,6 +13,11 @@ import type {
   RestartGatewayResult,
   SkillsSearchParams,
   SkillsInstallParams,
+  SelectFileOptions,
+  SelectFolderOptions,
+  SaveFileOptions,
+  SelectResult,
+  SaveResult,
 } from '@/types/electron'
 
 const isElectron = typeof window !== 'undefined' && Boolean(window.lingjing)
@@ -100,6 +105,49 @@ export const ipc = {
   skillsInfo(params: { slug: string }) {
     if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, text: '', code: -1 }))
     return window.lingjing.skillsInfo(params)
+  },
+
+  selectFile(opts?: SelectFileOptions): Promise<SelectResult> {
+    if (!window.lingjing) {
+      // 浏览器环境兜底：用 <input type="file"> 弹原生选择器
+      return new Promise((resolve) => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        if (opts?.multiSelect) input.multiple = true
+        if (opts?.filters?.length) {
+          input.accept = opts.filters.flatMap((f) => f.extensions.map((e) => '.' + e)).join(',')
+        }
+        input.onchange = () => {
+          const files = input.files ? Array.from(input.files) : []
+          if (files.length === 0) resolve({ ok: false, canceled: true, paths: [] })
+          // 浏览器没法拿到完整路径，只有 name
+          else resolve({ ok: true, canceled: false, paths: files.map((f) => f.name) })
+        }
+        input.oncancel = () => resolve({ ok: false, canceled: true, paths: [] })
+        input.click()
+      })
+    }
+    return window.lingjing.selectFile(opts)
+  },
+
+  selectFolder(opts?: SelectFolderOptions): Promise<SelectResult> {
+    if (!window.lingjing) return Promise.resolve(notInElectron<SelectResult>({ ok: false, canceled: true, paths: [] }))
+    return window.lingjing.selectFolder(opts)
+  },
+
+  saveFile(opts?: SaveFileOptions): Promise<SaveResult> {
+    if (!window.lingjing) return Promise.resolve(notInElectron<SaveResult>({ ok: false, canceled: true, path: null }))
+    return window.lingjing.saveFile(opts)
+  },
+
+  showInFolder(filePath: string) {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, message: 'not in Electron' }))
+    return window.lingjing.showInFolder(filePath)
+  },
+
+  readTextFile(filePath: string) {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, message: 'not in Electron' }))
+    return window.lingjing.readTextFile(filePath)
   },
 }
 

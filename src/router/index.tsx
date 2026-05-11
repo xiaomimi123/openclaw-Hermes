@@ -7,6 +7,7 @@ import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ChatPage } from '@/pages/chat/ChatPage'
 import { TaskCenter } from '@/pages/tasks/TaskCenter'
 import { TaskExecutionPage } from '@/pages/tasks/TaskExecutionPage'
+import { SettingsPage } from '@/pages/settings/SettingsPage'
 
 export const router = createBrowserRouter([
   {
@@ -47,16 +48,7 @@ export const router = createBrowserRouter([
           />
         ),
       },
-      {
-        path: 'settings',
-        element: (
-          <PlaceholderPage
-            title="设置"
-            description="主题、语言、Gateway、快捷键"
-            phase="Phase 6 接入"
-          />
-        ),
-      },
+      { path: 'settings', element: <SettingsPage /> },
       {
         path: '*',
         element: (

@@ -20,9 +20,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FolderOpen, FileSearch, Save } from 'lucide-react'
+import { ipc } from '@/services/ipc'
 import type { TaskTemplate } from '@/data/task-templates'
 import { cn } from '@/lib/utils'
+
+/** 字段名匹配规则 → 自动决定弹文件夹/文件/保存选择器 */
+type PathKind = 'folder' | 'file' | 'save'
+
+function detectPathKind(fieldName: string): PathKind | null {
+  const n = fieldName.toLowerCase()
+  // 输出/保存类
+  if (/^(output|out|backupdir|csv|target|dest|destination)$/.test(n)) return 'save'
+  // 目录类
+  if (/folder|dir|directory|workspace|inputdir/.test(n)) return 'folder'
+  // 文件类
+  if (/(file|path|source|xlsx|pdf|input|json|csv)/.test(n)) return 'file'
+  return null
+}
 
 interface TemplateParamsDialogProps {
   template: TaskTemplate | null
@@ -192,13 +207,18 @@ function FieldRow({ field, value, onChange, error }: FieldRowProps) {
 
   let input: React.ReactNode = null
   if (field.type === 'string') {
-    input = (
-      <Input
-        value={(value as string) ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={field.required ? '必填' : '可选'}
-      />
-    )
+    const pathKind = detectPathKind(field.name)
+    if (pathKind) {
+      input = <PathInput value={(value as string) ?? ''} onChange={(v) => onChange(v)} kind={pathKind} />
+    } else {
+      input = (
+        <Input
+          value={(value as string) ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.required ? '必填' : '可选'}
+        />
+      )
+    }
   } else if (field.type === 'number') {
     input = (
       <Input
@@ -251,6 +271,49 @@ function FieldRow({ field, value, onChange, error }: FieldRowProps) {
       {label}
       {input}
       {error && <div className={cn('mt-1 text-[11px] text-destructive')}>{error}</div>}
+    </div>
+  )
+}
+
+interface PathInputProps {
+  value: string
+  onChange: (v: string) => void
+  kind: PathKind
+}
+
+function PathInput({ value, onChange, kind }: PathInputProps) {
+  const placeholder =
+    kind === 'folder' ? '目录路径，点右侧选目录' : kind === 'save' ? '输出路径，点右侧选保存位置' : '文件路径，点右侧选文件'
+  const Icon = kind === 'folder' ? FolderOpen : kind === 'save' ? Save : FileSearch
+
+  const handleBrowse = useCallback(async () => {
+    let result: { ok: boolean; canceled?: boolean; paths?: string[]; path?: string | null }
+    if (kind === 'folder') {
+      result = await ipc.selectFolder({ defaultPath: value || undefined })
+    } else if (kind === 'save') {
+      result = await ipc.saveFile({ defaultPath: value || undefined })
+    } else {
+      result = await ipc.selectFile({ defaultPath: value || undefined })
+    }
+    if (result.ok) {
+      if ('paths' in result && Array.isArray(result.paths) && result.paths[0]) onChange(result.paths[0])
+      else if ('path' in result && typeof result.path === 'string') onChange(result.path)
+    }
+  }, [kind, value, onChange])
+
+  return (
+    <div className="flex gap-1">
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="flex-1 font-mono text-xs" />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        onClick={handleBrowse}
+        title={kind === 'folder' ? '选文件夹' : kind === 'save' ? '选保存位置' : '选文件'}
+        data-testid={`browse-${kind}`}
+      >
+        <Icon className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
