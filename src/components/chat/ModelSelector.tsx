@@ -4,7 +4,7 @@
 //
 // 暂用 DropdownMenu。后续可以扩展为带搜索的 Command 面板（Ctrl+K）。
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Check, Cpu, ChevronDown } from 'lucide-react'
 import {
   DropdownMenu,
@@ -17,16 +17,40 @@ import {
 import { Button } from '@/components/ui/button'
 import { useChatStore } from '@/stores/chat-store'
 import { useConnectionStore } from '@/stores/connection-store'
+import { openClaw } from '@/services/openclaw-rpc'
 
 export function ModelSelector() {
   const model = useChatStore((s) => s.model)
   const setModel = useChatStore((s) => s.setModel)
+  const sessionKey = useChatStore((s) => s.sessionKey)
+  const setError = useChatStore((s) => s.setError)
   const { models, modelsLoading, modelsError, fetchModels } = useConnectionStore()
+  const [switching, setSwitching] = useState(false)
 
   useEffect(() => {
     // 启动时拉一次模型列表（若已有缓存也刷新一次）
     fetchModels()
   }, [fetchModels])
+
+  const handleSelect = useCallback(
+    async (modelId: string | null) => {
+      // 没会话时只更新本地 UI；有会话时调 agent.model.set 切到该会话
+      if (!sessionKey || modelId === null) {
+        setModel(modelId)
+        return
+      }
+      setSwitching(true)
+      try {
+        await openClaw.setAgentModel(sessionKey, modelId)
+        setModel(modelId)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setSwitching(false)
+      }
+    },
+    [sessionKey, setModel, setError],
+  )
 
   const current = models.find((m) => m.id === model)
   const label = current?.name ?? model ?? '默认模型'
@@ -46,9 +70,11 @@ export function ModelSelector() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel className="text-[11px]">可用模型</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[11px]">
+          可用模型 {switching && <span className="ml-1 text-muted-foreground">（切换中…）</span>}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => setModel(null)} className="text-xs">
+        <DropdownMenuItem onClick={() => handleSelect(null)} className="text-xs">
           <span className="flex w-4 items-center">{model == null && <Check className="h-3 w-3" />}</span>
           <span>默认模型（Gateway 当前配置）</span>
         </DropdownMenuItem>
@@ -71,7 +97,7 @@ export function ModelSelector() {
         {models.map((m) => (
           <DropdownMenuItem
             key={m.id}
-            onClick={() => setModel(m.id)}
+            onClick={() => handleSelect(m.id)}
             className="flex items-start gap-2 text-xs"
             data-model-id={m.id}
           >

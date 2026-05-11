@@ -2,6 +2,7 @@
 // 原 src-vue-backup/composables/useEventStream.ts 经 store 中转；React 版直接管理 EventSource。
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { getAuthToken } from '@/services/http-client'
 
 export interface AgentEvent {
   type?: string
@@ -41,7 +42,13 @@ export function useEventStream(options: UseEventStreamOptions = {}) {
 
   const connect = useCallback(() => {
     if (sourceRef.current) return
-    const es = new EventSource(endpoint)
+    // EventSource 不支持自定义请求头，token 必须走 query string。
+    // 后端 lib/auth.js 已经从 req.query.token 兜底读取。
+    const token = getAuthToken()
+    const url = token
+      ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+      : endpoint
+    const es = new EventSource(url)
     sourceRef.current = es
 
     es.onopen = () => {

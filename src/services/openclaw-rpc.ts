@@ -79,36 +79,29 @@ export const openClaw = {
     return callRPC('status')
   },
 
-  /** 发送聊天消息（含 fallback 方法链） */
-  async sendChat(params: ChatSendParams): Promise<unknown> {
+  /**
+   * 发送聊天消息。
+   * chat.send schema 严格：只接受 sessionKey + message + idempotencyKey 三个字段。
+   * 模型切换走 setAgentModel，不能放进 chat.send 调用里。
+   * 返回 { runId, status }，实际回复通过 SSE /api/events 的 event="chat" 流式推送。
+   */
+  async sendChat(params: ChatSendParams): Promise<{ runId: string; status: string }> {
     const idempotencyKey =
       params.idempotencyKey || `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const model = params.model?.trim()
-    const basePayload: Record<string, unknown> = {
+    const res = await callRPC<{ runId: string; status: string }>('chat.send', {
       sessionKey: params.sessionKey,
       message: params.message,
       idempotencyKey,
-    }
-    if (model) basePayload.modelRef = model
-
-    return callRPCWithFallback(
-      ['sessions.send', 'session.send', 'chat.send'],
-      [
-        basePayload,
-        { ...basePayload, input: params.message },
-        { key: params.sessionKey, message: params.message, idempotencyKey, ...(model ? { modelRef: model } : {}) },
-        { sessionKey: params.sessionKey, text: params.message, idempotencyKey },
-      ],
-    )
+    })
+    if (!res.ok) throw new Error(res.message)
+    return res.payload
   },
 
   /** 拉取历史消息 */
   async listChatHistory(sessionKey: string): Promise<ChatMessageRow[]> {
-    const payload = await callRPCWithFallback<unknown>(
-      ['chat.history', 'sessions.history', 'session.history', 'sessions.get', 'session.get'],
-      [{ sessionKey }, { key: sessionKey }, { session: sessionKey }],
-    )
-    return normalizeHistory(payload)
+    const res = await callRPC<{ messages?: unknown[] }>('chat.history', { sessionKey })
+    if (!res.ok) throw new Error(res.message)
+    return normalizeHistory(res.payload)
   },
 
   /** 列出所有会话（前端会话切换器用） */
@@ -123,12 +116,10 @@ export const openClaw = {
     return Array.isArray(list) ? list : []
   },
 
-  /** 中断当前 run（PRD 中按需，Phase 4 留接口占位） */
+  /** 中断当前 run */
   async abortActiveRun(sessionKey: string): Promise<void> {
-    await callRPCWithFallback(
-      ['sessions.abort', 'session.abort', 'chat.abort'],
-      [{ sessionKey }, { key: sessionKey }, { session: sessionKey }],
-    )
+    const res = await callRPC('chat.abort', { sessionKey })
+    if (!res.ok) throw new Error(res.message)
   },
 
   // ============ Session 管理 ============
@@ -225,13 +216,40 @@ function normalizeModelList(payload: unknown): ModelInfo[] {
 }
 
 function normalizeHistory(payload: unknown): ChatMessageRow[] {
-  if (Array.isArray(payload)) return payload as ChatMessageRow[]
-  const rec = payload as Record<string, unknown> | null
-  if (!rec) return []
-  const candidates = ['messages', 'history', 'items', 'list', 'data']
-  for (const key of candidates) {
-    const arr = rec[key]
-    if (Array.isArray(arr)) return arr as ChatMessageRow[]
+  let arr: unknown[] = []
+  if (Array.isArray(payload)) arr = payload
+  else if (payload && typeof payload === 'object') {
+    const rec = payload as Record<string, unknown>
+    for (const key of ['messages', 'history', 'items', 'list', 'data']) {
+      const v = rec[key]
+      if (Array.isArray(v)) { arr = v; break }
+    }
   }
-  return []
+  return arr
+    .map((row): ChatMessageRow | null => {
+      if (!row || typeof row !== 'object') return null
+      const r = row as Record<string, unknown>
+      const role = r.role as ChatMessageRow['role'] | undefined
+      if (!role) return null
+      // OpenClaw 的 content 是 [{type, text}] 数组，拼成字符串
+      let content = ''
+      if (typeof r.content === 'string') content = r.content
+      else if (Array.isArray(r.content)) {
+        content = r.content
+          .map((p) => {
+            if (typeof p === 'string') return p
+            if (p && typeof p === 'object' && 'text' in p) return String((p as { text: unknown }).text ?? '')
+            return ''
+          })
+          .join('')
+      }
+      // 注意：不要把 ...r 展开进来，否则会用 r.content（数组）覆盖我们刚拼好的 string
+      return {
+        id: typeof r.id === 'string' ? r.id : undefined,
+        role,
+        content,
+        timestamp: r.timestamp as string | number | undefined,
+      } as ChatMessageRow
+    })
+    .filter((m): m is ChatMessageRow => m !== null && m.content.length > 0)
 }
