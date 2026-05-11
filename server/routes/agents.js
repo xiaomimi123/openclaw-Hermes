@@ -170,5 +170,76 @@ router.get('/api/agents/:id/sessions', authMiddleware, (req, res) => {
   }
 })
 
+// ============ Market（Phase 8） ============
+
+// 注意：/market 路由要放在 /:id 之前，否则 Express 会把 "market" 当成 :id 参数。
+// 当前因 :id/sessions 也是 /:id 衍生路径，路径都是确定后缀，没问题。
+// 但 /:id 单独的 GET 已经在上面了——Express 顺序匹配，所以 /market 放在文件
+// 后段时不会被 /:id GET 截获（路径不同）。
+
+router.get('/api/agents-market', authMiddleware, (req, res) => {
+  try {
+    const manifestPath = join(PROJECT_ROOT, 'resources/market-manifest.json')
+    if (!existsSync(manifestPath)) {
+      return res.json({ ok: true, agents: [], message: 'market-manifest.json not found' })
+    }
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+    const installedIds = new Set(db.prepare('SELECT id FROM agents').all().map((r) => r.id))
+    const agents = (manifest.agents || []).map((a) => ({
+      ...a,
+      installed: installedIds.has(a.id),
+    }))
+    res.json({ ok: true, source: manifest.source, updatedAt: manifest.updatedAt, agents })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: { message: err.message } })
+  }
+})
+
+router.post('/api/agents-market/install', authMiddleware, (req, res) => {
+  try {
+    const { id } = req.body
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ ok: false, error: { message: 'id required' } })
+    }
+    const existing = db.prepare('SELECT * FROM agents WHERE id = ?').get(id)
+    if (existing) {
+      return res.json({ ok: true, agent: rowToAgent(existing), alreadyInstalled: true })
+    }
+    const manifestPath = join(PROJECT_ROOT, 'resources/market-manifest.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+    const meta = (manifest.agents || []).find((a) => a.id === id)
+    if (!meta) {
+      return res.status(404).json({ ok: false, error: { message: 'agent not in manifest' } })
+    }
+    const soulAbs = join(PROJECT_ROOT, meta.soulPath)
+    if (!existsSync(soulAbs)) {
+      return res.status(500).json({ ok: false, error: { message: `SOUL.md missing at ${meta.soulPath}` } })
+    }
+    db.prepare(`
+      INSERT INTO agents (id, name, emoji, description, soul_path, category, enabled)
+      VALUES (?, ?, ?, ?, ?, 'market', 1)
+    `).run(meta.id, meta.name, meta.emoji ?? null, meta.description ?? null, meta.soulPath)
+    const row = db.prepare('SELECT * FROM agents WHERE id = ?').get(meta.id)
+    res.json({ ok: true, agent: rowToAgent(row), alreadyInstalled: false })
+  } catch (err) {
+    console.error('[Agents] Install error:', err)
+    res.status(500).json({ ok: false, error: { message: err.message } })
+  }
+})
+
+router.delete('/api/agents/:id', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.id)
+    if (!row) return res.status(404).json({ ok: false, error: { message: 'Agent not found' } })
+    if (row.category === 'system') {
+      return res.status(400).json({ ok: false, error: { message: '系统预置 Agent 不可卸载' } })
+    }
+    db.prepare('DELETE FROM agents WHERE id = ?').run(req.params.id)
+    res.json({ ok: true, removed: req.params.id })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: { message: err.message } })
+  }
+})
+
 export { getAgentWorkspace }
 export default router

@@ -43,3 +43,43 @@ export async function activateAgent(id: string): Promise<ActivateResult> {
     method: 'POST',
   })
 }
+
+// ============ Market（Phase 8） ============
+
+export interface MarketAgent {
+  id: string
+  name: string
+  emoji?: string
+  description?: string
+  soulPath: string
+  author: string
+  version: string
+  tags: string[]
+  downloads: number
+  installed: boolean
+}
+
+export interface MarketListResult {
+  source?: string
+  updatedAt?: string
+  agents: MarketAgent[]
+}
+
+export async function listMarket(): Promise<MarketListResult> {
+  const res = await http<{ ok: boolean } & MarketListResult>('/api/agents-market')
+  return { source: res.source, updatedAt: res.updatedAt, agents: res.agents ?? [] }
+}
+
+export async function installMarketAgent(id: string): Promise<{
+  agent: AgentSummary
+  alreadyInstalled: boolean
+}> {
+  return http<{ ok: boolean; agent: AgentSummary; alreadyInstalled: boolean }>(
+    '/api/agents-market/install',
+    { method: 'POST', body: { id } },
+  ).then((r) => ({ agent: r.agent, alreadyInstalled: r.alreadyInstalled }))
+}
+
+export async function uninstallAgent(id: string): Promise<void> {
+  await http(`/api/agents/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
