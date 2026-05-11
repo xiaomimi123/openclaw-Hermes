@@ -41,6 +41,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "executableName": "lingjing",
       "target": [
         {
           "target": "dmg",
