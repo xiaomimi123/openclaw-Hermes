@@ -117,8 +117,8 @@ export const ipc = {
     return window.lingjing.clawhubGetUrl()
   },
 
-  clawhubSetUrl(url: string) {
-    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false }))
+  clawhubSetUrl(url: string): Promise<{ ok: boolean; url?: string; message?: string }> {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, message: 'not in Electron' }))
     return window.lingjing.clawhubSetUrl(url)
   },
 
