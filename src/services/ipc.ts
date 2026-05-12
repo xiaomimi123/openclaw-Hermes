@@ -112,6 +112,21 @@ export const ipc = {
     return window.lingjing.skillsInfo(params)
   },
 
+  clawhubGetUrl() {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, url: '', mirror: '' }))
+    return window.lingjing.clawhubGetUrl()
+  },
+
+  clawhubSetUrl(url: string) {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false }))
+    return window.lingjing.clawhubSetUrl(url)
+  },
+
+  clawhubPing(urls?: string[]) {
+    if (!window.lingjing) return Promise.resolve(notInElectron({ ok: false, results: [] }))
+    return window.lingjing.clawhubPing(urls)
+  },
+
   selectFile(opts?: SelectFileOptions): Promise<SelectResult> {
     if (!window.lingjing) {
       // 浏览器环境兜底：用 <input type="file"> 弹原生选择器

@@ -16,7 +16,7 @@
     "electron": "electron .",
     "electron:dev": "concurrently -k -n \"frontend,electron\" -c \"blue,magenta\" \"vite\" \"wait-on tcp:3001 && electron .\"",
     "electron:build": "tsc -b && vite build",
-    "dist:mac": "npm run electron:build && electron-builder --mac",
+    "dist:mac": "npm run electron:build && electron-builder --mac && npm rebuild better-sqlite3",
     "test:e2e": "node --env-file-if-exists=.env.test ./node_modules/.bin/playwright test",
     "test:e2e:headed": "node --env-file-if-exists=.env.test ./node_modules/.bin/playwright test --headed",
     "test:e2e:ui": "node --env-file-if-exists=.env.test ./node_modules/.bin/playwright test --ui",

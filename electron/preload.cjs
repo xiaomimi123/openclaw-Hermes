@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld('lingjing', {
   skillsUninstall: (params) => ipcRenderer.invoke('lingjing:skills-uninstall', params),
   skillsInfo: (params) => ipcRenderer.invoke('lingjing:skills-info', params),
   /**
+   * ClawHub URL 配置（Settings UI 用）。
+   * 国内默认走 cn.clawhub-mirror.com 镜像；用户可改官方或自定义。
+   */
+  clawhubGetUrl: () => ipcRenderer.invoke('lingjing:clawhub-get-url'),
+  clawhubSetUrl: (url) => ipcRenderer.invoke('lingjing:clawhub-set-url', { url }),
+  clawhubPing: (urls) => ipcRenderer.invoke('lingjing:clawhub-ping', { urls }),
+  /**
    * 系统原生文件/文件夹选择器，Phase 5 任务执行的路径参数用。
    * selectFile/selectFolder 返回 { ok, canceled, paths: string[] }；
    * saveFile 返回 { ok, canceled, path: string|null }。

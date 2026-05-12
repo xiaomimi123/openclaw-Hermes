@@ -557,6 +557,41 @@ ipcMain.handle('lingjing:auto-configure-via-main', async (_event, params) => {
 // ClawHub 技能商城 —— 用 openclaw skills CLI 查询 + 安装
 // ============================================================================
 
+// 默认中国镜像。官方 clawhub.ai 在国内不可达（实测 503/超时）。
+// 镜像 API 跟官方 drop-in 兼容，且数据带中文翻译，国内用户首选。
+const DEFAULT_CLAWHUB_MIRROR_URL = 'https://cn.clawhub-mirror.com'
+// 持久化到我们自己的 config（不动 openclaw.json — 它的 schema 不接受顶层 clawhubUrl，
+// 写进去会被 Gateway 启动时 strip 掉）。
+// Skills 操作全走 CLI 子进程，注入 OPENCLAW_CLAWHUB_URL env 即可，无需 Gateway 知道。
+const LINGJING_CLAWHUB_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'lingjing-clawhub.json')
+
+async function readLingjingClawhubConfig() {
+  try {
+    const raw = await fs.readFile(LINGJING_CLAWHUB_CONFIG_PATH, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+async function getClawHubUrl() {
+  const cfg = await readLingjingClawhubConfig()
+  const url = cfg?.url
+  return typeof url === 'string' && url.trim() ? url.trim() : DEFAULT_CLAWHUB_MIRROR_URL
+}
+
+async function setClawHubUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) {
+    return { ok: false, message: 'url 不能为空' }
+  }
+  const trimmed = url.trim()
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return { ok: false, message: 'url 必须是 http(s)://' }
+  }
+  await fs.writeFile(LINGJING_CLAWHUB_CONFIG_PATH, JSON.stringify({ url: trimmed, updatedAt: Date.now() }, null, 2) + '\n', 'utf-8')
+  return { ok: true, url: trimmed }
+}
+
 async function findOpenClawBin() {
   const candidates = [
     '/opt/homebrew/bin/openclaw',
@@ -581,13 +616,14 @@ ipcMain.handle('lingjing:skills-search', async (_event, params) => {
   if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
   const args = ['skills', 'search', '--json', '--limit', String(limit)]
   if (query) args.push(query)
-  const r = await runCommand(bin, args, { timeout: 20000 })
+  const clawhubUrl = await getClawHubUrl()
+  const r = await runCommand(bin, args, { timeout: 20000, env: { OPENCLAW_CLAWHUB_URL: clawhubUrl } })
   if (r.code !== 0) {
     return { ok: false, message: `openclaw skills search exit ${r.code}: ${(r.stderr || r.stdout).slice(0, 300)}` }
   }
   try {
     const data = JSON.parse(r.stdout || '{}')
-    return { ok: true, results: Array.isArray(data?.results) ? data.results : [] }
+    return { ok: true, results: Array.isArray(data?.results) ? data.results : [], clawhubUrl }
   } catch (e) {
     return { ok: false, message: `JSON 解析失败:${String(e?.message || e)}` }
   }
@@ -601,7 +637,8 @@ ipcMain.handle('lingjing:skills-install', async (_event, params) => {
   if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
   const args = ['skills', 'install', slug]
   if (force) args.push('--force')
-  const r = await runCommand(bin, args, { timeout: 120000 })
+  const clawhubUrl = await getClawHubUrl()
+  const r = await runCommand(bin, args, { timeout: 120000, env: { OPENCLAW_CLAWHUB_URL: clawhubUrl } })
   if (r.code !== 0) {
     return { ok: false, message: `安装失败:${(r.stderr || r.stdout || `exit ${r.code}`).slice(0, 400)}` }
   }
@@ -613,7 +650,8 @@ ipcMain.handle('lingjing:skills-info', async (_event, params) => {
   if (!slug || typeof slug !== 'string') return { ok: false, message: 'slug 为空' }
   const bin = await findOpenClawBin()
   if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
-  const r = await runCommand(bin, ['skills', 'info', slug], { timeout: 20000 })
+  const clawhubUrl = await getClawHubUrl()
+  const r = await runCommand(bin, ['skills', 'info', slug], { timeout: 20000, env: { OPENCLAW_CLAWHUB_URL: clawhubUrl } })
   return {
     ok: r.code === 0,
     text: r.stdout || r.stderr || '',
@@ -635,6 +673,39 @@ ipcMain.handle('lingjing:skills-uninstall', async (_event, params) => {
     return { ok: false, message: `卸载失败:${(r.stderr || r.stdout || `exit ${r.code}`).slice(0, 400)}` }
   }
   return { ok: true, stdout: r.stdout?.slice(-400) || '' }
+})
+
+// ClawHub URL 读写（Settings UI 用）
+ipcMain.handle('lingjing:clawhub-get-url', async () => {
+  const url = await getClawHubUrl()
+  return { ok: true, url, mirror: DEFAULT_CLAWHUB_MIRROR_URL }
+})
+
+ipcMain.handle('lingjing:clawhub-set-url', async (_event, params) => {
+  return setClawHubUrl(params?.url)
+})
+
+// 测速：ping 各候选 URL，返回延迟。Settings UI 选源时用。
+ipcMain.handle('lingjing:clawhub-ping', async (_event, params) => {
+  const urls = Array.isArray(params?.urls) && params.urls.length > 0
+    ? params.urls.filter((u) => typeof u === 'string')
+    : [DEFAULT_CLAWHUB_MIRROR_URL, 'https://clawhub.ai']
+  const results = await Promise.all(urls.map(async (url) => {
+    const t0 = Date.now()
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch(`${url.replace(/\/$/, '')}/`, {
+        method: 'HEAD',
+        signal: controller.signal,
+      }).catch(() => fetch(url, { signal: controller.signal })) // 部分站不支持 HEAD
+      clearTimeout(timeout)
+      return { url, ok: true, status: res.status, ms: Date.now() - t0 }
+    } catch (e) {
+      return { url, ok: false, ms: Date.now() - t0, message: String(e?.message || e).slice(0, 100) }
+    }
+  }))
+  return { ok: true, results }
 })
 
 ipcMain.handle('lingjing:open-external', async (_event, url) => {
