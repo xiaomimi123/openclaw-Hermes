@@ -13,3 +13,4 @@ data/wizard.db-shm
 data/wizard.db-wal
 .trae/playwright/.auth/
 playwright/.auth/
+release/

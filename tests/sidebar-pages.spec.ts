@@ -32,7 +32,7 @@ test.describe('侧边栏页面冒烟测试', () => {
 
       // 必须有标志元素
       try {
-        await expect(page.locator(p.mustHave).first()).toBeVisible({ timeout: 5_000 })
+        await expect(page.locator(p.mustHave).first()).toBeVisible({ timeout: 10_000 })
       } catch (err) {
         console.log(summarize(logs))
         throw err

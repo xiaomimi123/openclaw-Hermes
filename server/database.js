@@ -103,8 +103,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_agents_enabled ON agents(enabled);
 `)
 
-// 种入 5 个预置 Agent（仅首次）
+// 种入预置 Agent（按 id 检测，缺哪个补哪个 — 升级新版本时新增的 Agent 也能自动补齐）
+// lingjing 放第一个：新装机默认激活的"全能主理人"
 const SEED_AGENTS = [
+  { id: 'lingjing', name: '灵境主理人', emoji: '🪐', description: '默认主助手，能打开应用 / 网页、跑命令、操作文件 — 灵境桌面端的入口角色' },
   { id: 'file-butler', name: '文件管家', emoji: '📁', description: '整理、重命名、归档、清理文件，dry-run 优先，安全沙箱' },
   { id: 'doc-expert', name: '文档处理专家', emoji: '📄', description: 'PDF / Word / Excel / Markdown 互转 + 抽取 + OCR + 校对' },
   { id: 'data-analyst', name: '数据分析助手', emoji: '📊', description: 'CSV / Excel / SQL 清洗、统计、可视化、建模' },
@@ -113,17 +115,16 @@ const SEED_AGENTS = [
 ]
 
 {
-  const existing = db.prepare('SELECT COUNT(*) as c FROM agents WHERE category = ?').get('system')
-  if (!existing || existing.c < SEED_AGENTS.length) {
-    const insert = db.prepare(`
-      INSERT OR IGNORE INTO agents (id, name, emoji, description, soul_path, category, enabled)
-      VALUES (?, ?, ?, ?, ?, 'system', 1)
-    `)
-    for (const a of SEED_AGENTS) {
-      insert.run(a.id, a.name, a.emoji, a.description, `resources/agents/${a.id}.md`)
-    }
-    console.log(`[Database] Seeded ${SEED_AGENTS.length} preset agents`)
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO agents (id, name, emoji, description, soul_path, category, enabled)
+    VALUES (?, ?, ?, ?, ?, 'system', 1)
+  `)
+  let inserted = 0
+  for (const a of SEED_AGENTS) {
+    const r = insert.run(a.id, a.name, a.emoji, a.description, `resources/agents/${a.id}.md`)
+    if (r.changes > 0) inserted++
   }
+  if (inserted > 0) console.log(`[Database] Seeded ${inserted} new preset agent(s)`)
 }
 
 // 增量迁移:旧库可能没有这些列,以幂等方式 ALTER

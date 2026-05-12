@@ -56,7 +56,15 @@ export const useAgentStore = create<AgentState>()(
         set({ loading: true, error: null })
         try {
           const agents = await listAgents()
-          set({ agents, loading: false })
+          // 首次启动 / 选过的 Agent 已被卸载 → 默认激活 lingjing（全能主理人）
+          const { activeAgentId } = get()
+          const stillExists = activeAgentId && agents.some((a) => a.id === activeAgentId)
+          if (!stillExists && agents.some((a) => a.id === 'lingjing')) {
+            set({ agents, loading: false })
+            void get().activate('lingjing')
+          } else {
+            set({ agents, loading: false })
+          }
         } catch (e) {
           set({ error: e instanceof Error ? e.message : String(e), loading: false })
         }

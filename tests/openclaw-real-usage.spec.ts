@@ -228,6 +228,7 @@ test.describe('OpenClaw 真实功能 e2e', () => {
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(4000)
 
+    await expect(page.locator('h1:has-text("自动化任务"), body:has-text("自动化任务")').first()).toBeVisible({ timeout: 10_000 })
     const body = await page.locator('body').innerText()
     expect(body).toContain('自动化任务')
     console.log('cron 页渲染正常')

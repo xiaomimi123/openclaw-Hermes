@@ -18,6 +18,7 @@ interface LoginResponse {
 export function useAuth() {
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null)
   const [token, setToken] = useState<string | null>(() => getAuthToken())
+  const [tokenVerified, setTokenVerified] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,18 +40,25 @@ export function useAuth() {
 
   // 已登录 + 配置加载完成 → 校验 token 是否还有效（防止后端重启 token 失效）
   useEffect(() => {
-    if (!authEnabled || !token) return
+    if (!authEnabled || !token) {
+      setTokenVerified(false)
+      return
+    }
     let cancelled = false
     void (async () => {
       setChecking(true)
       try {
         await http('/api/auth/check')
-        if (!cancelled) setError(null)
+        if (!cancelled) {
+          setError(null)
+          setTokenVerified(true)
+        }
       } catch (e) {
         // 401 → token 失效，清掉
         if (!cancelled) {
           setAuthToken(null)
           setToken(null)
+          setTokenVerified(false)
           setError(e instanceof Error ? e.message : String(e))
         }
       } finally {
@@ -74,6 +82,7 @@ export function useAuth() {
       if (res.ok && res.token) {
         setAuthToken(res.token)
         setToken(res.token)
+        setTokenVerified(true)
         return true
       }
       setError(res.error || res.message || '登录失败')
@@ -102,6 +111,7 @@ export function useAuth() {
   return {
     authEnabled,
     token,
+    tokenVerified,
     needsLogin,
     checking,
     error,

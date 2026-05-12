@@ -1,4 +1,5 @@
 import { test as setup, expect } from '@playwright/test'
+import * as fs from 'fs'
 import { getCredentialsFromEnv } from './helpers/auth'
 
 /**
@@ -10,7 +11,28 @@ import { getCredentialsFromEnv } from './helpers/auth'
  */
 const STORAGE_STATE = 'playwright/.auth/user.json'
 
+/** 检查已有 storageState 的 session_v2 cookie 是否仍在有效期内(剩余 > 1 天) */
+function isStorageStateValid(): boolean {
+  try {
+    const raw = fs.readFileSync(STORAGE_STATE, 'utf-8')
+    const state = JSON.parse(raw)
+    const cookies: Array<{ name: string; expires?: number }> = state.cookies ?? []
+    const sess = cookies.find((c) => c.name === 'session_v2')
+    if (!sess || !sess.expires) return false
+    const remainingSec = sess.expires - Date.now() / 1000
+    return remainingSec > 86400 // 还有 1 天以上
+  } catch {
+    return false
+  }
+}
+
 setup('authenticate', async ({ page, context }) => {
+  // 已有有效 session → 跳过重新登录,避免触发云端限频(5次/min)
+  if (isStorageStateValid()) {
+    console.log('[auth.setup] storageState 仍有效,跳过重新登录')
+    return
+  }
+
   const creds = getCredentialsFromEnv()
   if (!creds) {
     throw new Error(

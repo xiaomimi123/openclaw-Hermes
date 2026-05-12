@@ -16,15 +16,15 @@ import { LoginGate } from '@/components/auth/LoginGate'
 
 export default function App() {
   useTheme()
-  const { authEnabled, needsLogin, checking, error, login, token } = useAuth()
+  const { authEnabled, needsLogin, checking, error, login, token, tokenVerified } = useAuth()
   const refreshLingjing = useLingjingAuthStore((s) => s.refreshSelf)
 
   // 拿到本地 token（或本地无需 auth）后，启动校验灵境云端 session
   useEffect(() => {
-    if (authEnabled === false || token) {
+    if (authEnabled === false || tokenVerified) {
       refreshLingjing()
     }
-  }, [authEnabled, token, refreshLingjing])
+  }, [authEnabled, tokenVerified, refreshLingjing])
 
   // 拉本地配置中
   if (authEnabled === null) {
@@ -37,6 +37,15 @@ export default function App() {
 
   if (needsLogin) {
     return <LoginGate onLogin={login} checking={checking} error={error} />
+  }
+
+  // 有 token 但还在校验有效性，先不渲染 RouterProvider（避免子组件并发打 API 拿一堆 401）
+  if (authEnabled === true && token && !tokenVerified) {
+    return (
+      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+        正在校验登录态…
+      </div>
+    )
   }
 
   return <RouterProvider router={router} />
