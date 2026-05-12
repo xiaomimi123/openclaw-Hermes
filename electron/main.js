@@ -659,20 +659,32 @@ ipcMain.handle('lingjing:skills-info', async (_event, params) => {
   }
 })
 
+// OpenClaw CLI 没有 `skills uninstall` 子命令（实测 v2026.4.21 只有 check/info/install/list/search/update），
+// 卸载只能直接删 workspace 下的 skill 目录。下次 skills.status RPC 自动 reload。
 ipcMain.handle('lingjing:skills-uninstall', async (_event, params) => {
-  // OpenClaw Gateway 端 skills.uninstall / skills.remove RPC 都是 unknown method，
-  // 走 openclaw skills uninstall CLI 兜底（Gateway 重启后会从 .openclaw/skills/ 重新发现）
   const slug = params?.slug
   if (!slug || typeof slug !== 'string') return { ok: false, message: 'slug 为空' }
-  const bin = await findOpenClawBin()
-  if (!bin) return { ok: false, message: 'openclaw CLI 未找到' }
-  const args = ['skills', 'uninstall', slug]
-  if (params?.force) args.push('--force')
-  const r = await runCommand(bin, args, { timeout: 60000 })
-  if (r.code !== 0) {
-    return { ok: false, message: `卸载失败:${(r.stderr || r.stdout || `exit ${r.code}`).slice(0, 400)}` }
+  // 防路径穿越：slug 只允许 alphanumeric / - / _
+  if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+    return { ok: false, message: 'slug 含非法字符' }
   }
-  return { ok: true, stdout: r.stdout?.slice(-400) || '' }
+  const skillsRoot = path.join(os.homedir(), '.openclaw', 'workspace', 'skills')
+  const target = path.join(skillsRoot, slug)
+  // 二次校验：resolve 后必须仍在 skillsRoot 内
+  const resolved = path.resolve(target)
+  if (!resolved.startsWith(path.resolve(skillsRoot) + path.sep)) {
+    return { ok: false, message: '路径越界' }
+  }
+  try {
+    const stat = await fs.stat(resolved).catch(() => null)
+    if (!stat || !stat.isDirectory()) {
+      return { ok: false, message: `未找到已安装的 ${slug}（路径 ${resolved} 不存在）` }
+    }
+    await fs.rm(resolved, { recursive: true, force: true })
+    return { ok: true, removedPath: resolved }
+  } catch (e) {
+    return { ok: false, message: `删除失败:${String(e?.message || e).slice(0, 300)}` }
+  }
 })
 
 // ClawHub URL 读写（Settings UI 用）

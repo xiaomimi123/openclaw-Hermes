@@ -4,7 +4,7 @@
 // - 已安装：RPC skills.status 拿到完整列表（含 bundled + managed），筛选/展示
 // - 商店：preload skillsSearch（调 openclaw skills search CLI 走 ClawHub）
 // - 安装：preload skillsInstall（openclaw skills install <slug> CLI）
-// - 卸载：暂不暴露（避免误删 bundled；用户走 openclaw skills uninstall CLI）
+// - 卸载：已安装 Tab 直接显示卸载按钮；商城 Tab 已安装条目也复用 — bundled 一律拒绝
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -44,6 +44,7 @@ export function SkillsPage() {
   const [query, setQuery] = useState('')
   const [marketResults, setMarketResults] = useState<MarketSkillItem[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(20) // 分批展示，避免一次渲染百张卡
   const [installing, setInstalling] = useState<string | null>(null)
   const [uninstalling, setUninstalling] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -68,8 +69,10 @@ export function SkillsPage() {
   const handleSearch = useCallback(async () => {
     setMarketLoading(true)
     setError(null)
+    setVisibleCount(20) // 新搜索重置展示数
     try {
-      const res = await searchSkillsMarket({ query: query || undefined, limit: 30 })
+      // limit=100 一次拉满（OpenClaw CLI 不支持 offset），前端再分批展示
+      const res = await searchSkillsMarket({ query: query || undefined, limit: 100 })
       if (res.ok) setMarketResults(res.results ?? [])
       else setError(res.message ?? '搜索失败')
     } catch (e) {
@@ -127,6 +130,31 @@ export function SkillsPage() {
       }
     },
     [reload],
+  )
+
+  // 商城卡片点卸载：用 slug 找已安装 Skill 对象 → 复用 handleUninstall（带 bundled 拦截 + confirm）
+  const handleUninstallFromMarket = useCallback(
+    async (slug: string) => {
+      const matched = skills.find((s) => s.skillKey === slug || s.name === slug)
+      if (matched) {
+        await handleUninstall(matched)
+      } else {
+        // 兜底（理论不到 — alreadyInstalled 判断逻辑跟 find 一致）
+        if (!window.confirm(`卸载技能 ${slug}？`)) return
+        setUninstalling(slug)
+        try {
+          const res = await uninstallSkill(slug)
+          setToast(res.ok ? `${slug} 已卸载` : res.message || '卸载失败')
+          if (res.ok) reload()
+        } catch (e) {
+          setToast(e instanceof Error ? e.message : String(e))
+        } finally {
+          setUninstalling(null)
+          setTimeout(() => setToast(null), 4000)
+        }
+      }
+    },
+    [skills, handleUninstall, reload],
   )
 
   return (
@@ -212,16 +240,43 @@ export function SkillsPage() {
                     : '⚠️ 浏览器环境不能调 openclaw skills CLI，必须在 Electron 里用'}
                 </div>
               )}
-              {marketResults.map((m) => (
-                <MarketSkillCard
-                  key={m.slug ?? m.name}
-                  item={m}
-                  installing={installing === (m.slug ?? '')}
-                  alreadyInstalled={skills.some((s) => s.skillKey === m.slug || s.name === m.slug)}
-                  onInstall={() => m.slug && handleInstall(m.slug)}
-                />
-              ))}
+              {marketResults.slice(0, visibleCount).map((m) => {
+                // 区分三种状态：
+                // bundledOnly = OpenClaw 自带（不能卸载，显示"已内置"）
+                // installedByUser = workspace 装的副本（显示"卸载"）
+                // 都没装 → 显示"安装"
+                const matched = skills.find((s) => s.skillKey === m.slug || s.name === m.slug)
+                const installedByUser = matched && !matched.bundled
+                const bundledOnly = matched && matched.bundled === true && !installedByUser
+                return (
+                  <MarketSkillCard
+                    key={m.slug ?? m.name}
+                    item={m}
+                    installing={installing === (m.slug ?? '')}
+                    uninstalling={uninstalling === (m.slug ?? '')}
+                    installedByUser={!!installedByUser}
+                    bundledOnly={!!bundledOnly}
+                    onInstall={() => m.slug && handleInstall(m.slug)}
+                    onUninstall={() => m.slug && handleUninstallFromMarket(m.slug)}
+                  />
+                )
+              })}
             </div>
+            {marketResults.length > visibleCount && (
+              <div className="flex flex-col items-center gap-1 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleCount((n) => n + 20)}
+                  data-testid="skills-load-more"
+                >
+                  加载更多（还剩 {marketResults.length - visibleCount} 个）
+                </Button>
+                <span className="text-[10px] text-muted-foreground">
+                  已显示 {visibleCount} / {marketResults.length}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -355,17 +410,47 @@ function SkillCard({
   )
 }
 
+// 从镜像数据里提取中文翻译。优先级：metaContent.DisplayDescription > metaContent.summary 含中文 > 无。
+// CLI 默认 search 结果里 metaContent.DisplayDescription 是镜像维护的纯中文短描述。
+function extractCnDescription(item: MarketSkillItem): string | null {
+  const meta = (item as { metaContent?: unknown }).metaContent
+  if (!meta || typeof meta !== 'object') return null
+  const dd = (meta as { DisplayDescription?: unknown }).DisplayDescription
+  if (typeof dd === 'string' && dd.trim()) return dd.trim()
+  return null
+}
+
+// 检测字符串是否含中文（用于英文 description 容错——summary 经常是双语「中 | en」）
+function hasChinese(s: string): boolean {
+  return /[一-龥]/.test(s)
+}
+
 function MarketSkillCard({
   item,
   installing,
-  alreadyInstalled,
+  installedByUser,
+  bundledOnly,
   onInstall,
+  onUninstall,
+  uninstalling,
 }: {
   item: MarketSkillItem
   installing: boolean
-  alreadyInstalled: boolean
+  installedByUser: boolean
+  bundledOnly: boolean
   onInstall: () => void
+  onUninstall: () => void
+  uninstalling: boolean
 }) {
+  const cnDesc = extractCnDescription(item)
+  // 镜像 API 返回字段是 summary，老 schema 用 description，两个都兜一下
+  const rawDesc = typeof item.description === 'string' && item.description
+    ? item.description
+    : typeof (item as { summary?: unknown }).summary === 'string'
+      ? ((item as { summary: string }).summary)
+      : ''
+  // 如果 description 本身就含中文（比如 summary 是双语 "中 | en"），就不重复显示 cnDesc
+  const showCn = cnDesc && (!rawDesc || !hasChinese(rawDesc))
   return (
     <Card className="flex flex-col gap-2 p-3 text-xs">
       <div className="flex items-start gap-2">
@@ -373,8 +458,11 @@ function MarketSkillCard({
         <div className="min-w-0 flex-1">
           <div className="font-medium">{(item.name as string) ?? item.slug}</div>
           {item.slug && <div className="font-mono text-[10px] text-muted-foreground">{item.slug as string}</div>}
-          {item.description && (
-            <div className="mt-1 line-clamp-3 text-muted-foreground">{item.description as string}</div>
+          {rawDesc && (
+            <div className="mt-1 line-clamp-3 text-muted-foreground">{rawDesc}</div>
+          )}
+          {showCn && (
+            <div className="mt-1 line-clamp-2 text-foreground/80">🇨🇳 {cnDesc}</div>
           )}
         </div>
       </div>
@@ -390,24 +478,47 @@ function MarketSkillCard({
         ) : (
           <span />
         )}
-        <Button
-          size="sm"
-          variant={alreadyInstalled ? 'secondary' : 'default'}
-          disabled={alreadyInstalled || installing}
-          onClick={onInstall}
-        >
-          {installing ? (
-            <>
-              <Loader2 className="mr-1 h-3 w-3 animate-spin" /> 安装中…
-            </>
-          ) : alreadyInstalled ? (
-            <>已安装</>
-          ) : (
-            <>
-              <Download className="mr-1 h-3 w-3" /> 安装
-            </>
-          )}
-        </Button>
+        {bundledOnly ? (
+          <Button size="sm" variant="secondary" disabled title="OpenClaw 自带，无法卸载">
+            ✓ 已内置
+          </Button>
+        ) : installedByUser ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={uninstalling}
+            onClick={onUninstall}
+            data-testid="market-skill-uninstall"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            {uninstalling ? (
+              <>
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" /> 卸载中…
+              </>
+            ) : (
+              <>
+                <Trash2 className="mr-1 h-3 w-3" /> 卸载
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="default"
+            disabled={installing}
+            onClick={onInstall}
+          >
+            {installing ? (
+              <>
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" /> 安装中…
+              </>
+            ) : (
+              <>
+                <Download className="mr-1 h-3 w-3" /> 安装
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </Card>
   )
